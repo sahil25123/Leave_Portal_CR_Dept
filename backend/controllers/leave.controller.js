@@ -8,9 +8,9 @@ export async function applyLeave(req, res) {
       });
     }
 
-    if (req.user.role !== "staff") {
+    if (req.user.role !== "staff" && req.user.role !== "dean") {
       return res.status(403).json({
-        message: "Forbidden",
+        message: "Only staff and dean can apply for leave",
       });
     }
 

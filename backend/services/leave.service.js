@@ -1,6 +1,19 @@
 import prisma from "../config/prisma.js";
 import { calculateLeaveDays, toDateOnly } from "../utils/leaveCalculator.js";
 
+const APPLY_FLOW_BY_ROLE = {
+  staff: {
+    status: "pending_dean",
+    approverRole: "dean",
+    applyMessage: "A staff member applied for leave",
+  },
+  dean: {
+    status: "pending_hod",
+    approverRole: "hod",
+    applyMessage: "Dean applied for leave",
+  },
+};
+
 function parseAndValidateDates(fromDate, toDate) {
   const parsedFromDate = toDateOnly(fromDate);
   const parsedToDate = toDateOnly(toDate);
@@ -12,6 +25,16 @@ function parseAndValidateDates(fromDate, toDate) {
   return { parsedFromDate, parsedToDate };
 }
 
+function getApplyFlow(role) {
+  const flow = APPLY_FLOW_BY_ROLE[role];
+
+  if (!flow) {
+    throw new Error("Only staff and dean can apply for leave");
+  }
+
+  return flow;
+}
+
 export async function applyLeave(userId, data) {
   const { fromDate, toDate, reason, isHalfDay = false, attachment } = data;
 
@@ -21,12 +44,17 @@ export async function applyLeave(userId, data) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true },
+    select: {
+      id: true,
+      role: true,
+    },
   });
 
   if (!user) {
     throw new Error("User not found");
   }
+
+  const flow = getApplyFlow(user.role);
 
   const { parsedFromDate, parsedToDate } = parseAndValidateDates(
     fromDate,
@@ -70,17 +98,17 @@ export async function applyLeave(userId, data) {
     throw new Error("Insufficient leave balance");
   }
 
-  const dean = await prisma.user.findFirst({
+  const approver = await prisma.user.findFirst({
     where: {
-      role: "dean",
+      role: flow.approverRole,
     },
     select: {
       id: true,
     },
   });
 
-  if (!dean) {
-    throw new Error("Dean user not found");
+  if (!approver) {
+    throw new Error("Approver user not found");
   }
 
   const leave = await prisma.$transaction(async (tx) => {
@@ -93,17 +121,17 @@ export async function applyLeave(userId, data) {
         reason: String(reason).trim(),
         isHalfDay: isHalfDayLeave,
         attachment: attachment || null,
-        status: "pending_dean",
-        deanApproved: false,
+        status: flow.status,
+        deanApproved: user.role === "dean",
         hodApproved: false,
       },
     });
 
     await tx.notification.create({
       data: {
-        userId: dean.id,
+        userId: approver.id,
         title: "New Leave Request",
-        message: "A staff member applied for leave",
+        message: flow.applyMessage,
         type: "leave_applied",
         leaveId: createdLeave.id,
       },
@@ -113,4 +141,111 @@ export async function applyLeave(userId, data) {
   });
 
   return leave;
+}
+
+export async function approveLeave(leaveId, approverId) {
+  const approver = await prisma.user.findUnique({
+    where: { id: approverId },
+    select: {
+      id: true,
+      role: true,
+    },
+  });
+
+  if (!approver) {
+    throw new Error("User not found");
+  }
+
+  const leave = await prisma.leave.findUnique({
+    where: { id: leaveId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          role: true,
+        },
+      },
+    },
+  });
+
+  if (!leave) {
+    throw new Error("Leave not found");
+  }
+
+  if (approver.id === leave.userId) {
+    throw new Error("You cannot approve your own leave");
+  }
+
+  if (leave.user.role === "dean" && approver.role !== "hod") {
+    throw new Error("Only HOD can approve this leave");
+  }
+
+  if (leave.status === "pending_dean") {
+    if (approver.role !== "dean") {
+      throw new Error("Only dean can approve this leave");
+    }
+
+    const hod = await prisma.user.findFirst({
+      where: { role: "hod" },
+      select: { id: true },
+    });
+
+    if (!hod) {
+      throw new Error("HOD user not found");
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const updatedLeave = await tx.leave.update({
+        where: { id: leave.id },
+        data: {
+          status: "pending_hod",
+          deanApproved: true,
+          deanId: approver.id,
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: hod.id,
+          title: "Leave Needs HOD Approval",
+          message: "Dean approved a leave request",
+          type: "dean_approved",
+          leaveId: leave.id,
+        },
+      });
+
+      return updatedLeave;
+    });
+  }
+
+  if (leave.status === "pending_hod") {
+    if (approver.role !== "hod") {
+      throw new Error("Only HOD can approve this leave");
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const updatedLeave = await tx.leave.update({
+        where: { id: leave.id },
+        data: {
+          status: "approved",
+          hodApproved: true,
+          hodId: approver.id,
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: leave.userId,
+          title: "Leave Request Approved",
+          message: "Your leave request has been approved",
+          type: "final_decision",
+          leaveId: leave.id,
+        },
+      });
+
+      return updatedLeave;
+    });
+  }
+
+  throw new Error("Leave is not pending approval");
 }
