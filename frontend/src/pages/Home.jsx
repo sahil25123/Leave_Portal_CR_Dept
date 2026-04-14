@@ -10,7 +10,7 @@ function Home() {
 
   return (
     <main className="flex min-h-screen flex-col bg-[#ececec] px-10 py-7 max-[600px]:p-6">
-      <Navbar />
+    
 
       {/* Main center content */}
       <section className="flex flex-1 flex-col items-center justify-center gap-5">

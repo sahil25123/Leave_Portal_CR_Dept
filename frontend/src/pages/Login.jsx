@@ -1,23 +1,27 @@
-import { useNavigate } from 'react-router-dom'
-import Navbar from '../components/Navbar'
+import { useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
 
 function Login() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const handleSubmit = (event) => {
-    event.preventDefault()
-    navigate('/leave-apply')
-  }
+    event.preventDefault();
+    navigate("/leave-apply");
+  };
 
   return (
     <>
-      <Navbar />
       <main className="grid min-h-screen place-items-center bg-[#ececec] p-6 font-['Segoe_UI',Tahoma,Geneva,Verdana,sans-serif] text-[#1d1d1d]">
         <section className="w-full max-w-[380px] rounded-xl bg-white p-6 shadow-[0_10px_24px_rgba(0,0,0,0.08)]">
-          <h2 className="mb-5 mt-0 text-center text-[28px] font-semibold">Login</h2>
+          <h2 className="mb-5 mt-0 text-center text-[28px] font-semibold">
+            Login
+          </h2>
 
           <form className="flex flex-col gap-[10px]" onSubmit={handleSubmit}>
-            <label className="text-sm font-semibold text-[#333]" htmlFor="email">
+            <label
+              className="text-sm font-semibold text-[#333]"
+              htmlFor="email"
+            >
               Email
             </label>
             <input
@@ -27,7 +31,10 @@ function Login() {
               placeholder="Enter your email"
             />
 
-            <label className="text-sm font-semibold text-[#333]" htmlFor="password">
+            <label
+              className="text-sm font-semibold text-[#333]"
+              htmlFor="password"
+            >
               Password
             </label>
             <input
@@ -47,7 +54,7 @@ function Login() {
         </section>
       </main>
     </>
-  )
+  );
 }
 
-export default Login
+export default Login;
