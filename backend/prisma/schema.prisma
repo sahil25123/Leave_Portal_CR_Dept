@@ -4,12 +4,110 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "mysql"
-  
+}
 
+enum UserRole {
+  staff
+  dean
+  hod
+  admin
+}
+
+enum LeaveStatus {
+  pending_dean
+  pending_hod
+  approved
+  rejected
+}
+
+enum NotificationType {
+  leave_applied
+  dean_approved
+  final_decision
+}
+
+model User {
+  id          Int            @id @default(autoincrement())
+  name        String
+  email       String         @unique
+  password    String
+  designation String
+  role        UserRole       @default(staff)
+  createdAt   DateTime       @default(now())
+
+  leaves           Leave[]        @relation("LeaveApplicant")
+  deanReviewLeaves Leave[]        @relation("LeaveDean")
+  hodReviewLeaves  Leave[]        @relation("LeaveHod")
+  leaveBalances    LeaveBalance[]
+  notifications    Notification[]
+}
+
+model Leave {
+  id              Int         @id @default(autoincrement())
+  userId          Int
+  deanId          Int?
+  hodId           Int?
+  fromDate        DateTime
+  toDate          DateTime
+  isHalfDay       Boolean     @default(false)
+  totalDays       Float
+  reason          String
+  attachment      String?
+  status          LeaveStatus @default(pending_dean)
+  deanApproved    Boolean     @default(false)
+  hodApproved     Boolean     @default(false)
+  rejectionReason String?
+  createdAt       DateTime    @default(now())
+
+  user          User           @relation("LeaveApplicant", fields: [userId], references: [id])
+  dean          User?          @relation("LeaveDean", fields: [deanId], references: [id])
+  hod           User?          @relation("LeaveHod", fields: [hodId], references: [id])
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([fromDate, toDate])
+}
+
+model LeaveBalance {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  year      Int
+  total     Float    @default(30)
+  used      Float    @default(0)
+  remaining Float    @default(30)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, year])
+  @@index([year])
+}
+
+model Holiday {
+  id        Int      @id @default(autoincrement())
+  name      String
+  date      DateTime @unique
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  leaveId   Int?
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user  User   @relation(fields: [userId], references: [id])
+  leave Leave? @relation(fields: [leaveId], references: [id])
+
+  @@index([userId, isRead])
 }
