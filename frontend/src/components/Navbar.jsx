@@ -1,11 +1,14 @@
+import logoImage from '../assets/IITD Logo.jpg'
+
 function Navbar() {
   return (
     <header className="flex w-full items-center justify-between border-b border-[#d8d8d8] bg-[#ececec] px-[50px] py-5 max-[600px]:px-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="m-0 text-[34px] font-bold leading-none text-[#1d1d1d] max-[600px]:text-[30px]">
-          Corporate Relations
-        </h1>
-        <p className="m-0 text-sm text-[#444]">Indian Institute of Technology Delhi</p>
+      <div className="flex items-center">
+        <img
+          src={logoImage}
+          alt="DMSE Logo"
+          className="h-14 w-auto object-contain"
+        />
       </div>
 
       <div className="flex items-center gap-3">
