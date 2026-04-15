@@ -1,9 +1,6 @@
 import {
-  createHoliday as createHolidayService,
   createUser as createUserService,
-  deleteHoliday as deleteHolidayService,
   getAllUsers as getAllUsersService,
-  getHolidays as getHolidaysService,
   updateUser as updateUserService,
 } from "../services/admin.service.js";
 import { getAllLeavesForAdmin as getAllLeavesForAdminService } from "../services/leave.service.js";
@@ -66,34 +63,6 @@ export async function updateUser(req, res) {
     return res.status(200).json({ message: "User updated", user });
   } catch (error) {
     return handleError(res, error, "Failed to update user");
-  }
-}
-
-export async function getHolidayList(req, res) {
-  try {
-    const holidays = await getHolidaysService(req.user);
-    return res.status(200).json({ holidays });
-  } catch (error) {
-    return handleError(res, error, "Failed to fetch holidays");
-  }
-}
-
-export async function createHoliday(req, res) {
-  try {
-    const holiday = await createHolidayService(req.user, req.body);
-    return res.status(201).json({ message: "Holiday created", holiday });
-  } catch (error) {
-    return handleError(res, error, "Failed to create holiday");
-  }
-}
-
-export async function deleteHoliday(req, res) {
-  try {
-    const holidayId = parseId(req.params.id, "holiday");
-    await deleteHolidayService(req.user, holidayId);
-    return res.status(200).json({ message: "Holiday deleted" });
-  } catch (error) {
-    return handleError(res, error, "Failed to delete holiday");
   }
 }
 

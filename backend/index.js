@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes.js";
 import leaveRoutes from "./routes/leave.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import holidayRoutes from "./routes/holiday.routes.js";
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/leave", leaveRoutes);
 app.use("/api", adminRoutes);
+app.use("/api", holidayRoutes);
 
 app.get("/", (req, res) => {
   res.send("API Running...");

@@ -8,6 +8,7 @@ import {
   createHolidayRequest,
   deleteHolidayRequest,
   getHolidaysRequest,
+  syncHolidaysRequest,
 } from "../services/admin.service";
 import { getApiErrorMessage } from "../services/api";
 
@@ -21,9 +22,11 @@ function HolidayManagement() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [syncYear, setSyncYear] = useState(new Date().getUTCFullYear());
 
   async function loadHolidays() {
     setIsLoading(true);
@@ -72,12 +75,37 @@ function HolidayManagement() {
 
     try {
       await deleteHolidayRequest(holidayId);
-      setHolidays((current) => current.filter((holiday) => holiday.id !== holidayId));
+      setHolidays((current) =>
+        current.filter((holiday) => holiday.id !== holidayId),
+      );
       setSuccess("Holiday deleted successfully.");
     } catch (deleteError) {
       setError(getApiErrorMessage(deleteError, "Failed to delete holiday"));
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleSync() {
+    setIsSyncing(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const result = await syncHolidaysRequest(syncYear);
+      const holidayList = await getHolidaysRequest();
+      setHolidays(holidayList);
+      setSuccess(
+        "Synced " +
+          (result?.syncedCount ?? 0) +
+          " holidays for year " +
+          (result?.year ?? syncYear) +
+          ".",
+      );
+    } catch (syncError) {
+      setError(getApiErrorMessage(syncError, "Failed to sync holidays"));
+    } finally {
+      setIsSyncing(false);
     }
   }
 
@@ -93,6 +121,37 @@ function HolidayManagement() {
         </div>
       ) : null}
 
+      <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="grid gap-1">
+            <label
+              className="text-sm font-medium text-slate-700"
+              htmlFor="sync-year"
+            >
+              Sync Year
+            </label>
+            <input
+              id="sync-year"
+              type="number"
+              min="1900"
+              max="3000"
+              value={syncYear}
+              onChange={(event) => setSyncYear(Number(event.target.value))}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm md:w-40"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="rounded-md bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800 disabled:cursor-not-allowed disabled:bg-indigo-300"
+          >
+            {isSyncing ? "Syncing holidays..." : "Sync Holidays"}
+          </button>
+        </div>
+      </section>
+
       <section className="mb-5">
         <HolidayForm
           values={form}
@@ -106,7 +165,11 @@ function HolidayManagement() {
         {isLoading ? (
           <LoadingState label="Loading holidays..." />
         ) : (
-          <HolidayTable holidays={holidays} deletingId={deletingId} onDelete={handleDelete} />
+          <HolidayTable
+            holidays={holidays}
+            deletingId={deletingId}
+            onDelete={handleDelete}
+          />
         )}
       </section>
     </AppShell>
