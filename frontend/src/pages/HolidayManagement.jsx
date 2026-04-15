@@ -77,7 +77,10 @@ function HolidayManagement() {
 
     try {
       if (editingHolidayId) {
-        const updatedHoliday = await updateHolidayRequest(editingHolidayId, form);
+        const updatedHoliday = await updateHolidayRequest(
+          editingHolidayId,
+          form,
+        );
 
         setHolidays((current) =>
           current.map((holiday) =>
@@ -97,7 +100,9 @@ function HolidayManagement() {
       setError(
         getApiErrorMessage(
           submitError,
-          editingHolidayId ? "Failed to update holiday" : "Failed to add holiday",
+          editingHolidayId
+            ? "Failed to update holiday"
+            : "Failed to add holiday",
         ),
       );
     } finally {

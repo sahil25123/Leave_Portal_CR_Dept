@@ -16,7 +16,10 @@ function HolidayForm({
       </h3>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="holiday-name">
+        <label
+          className="mb-1 block text-sm font-medium text-slate-700"
+          htmlFor="holiday-name"
+        >
           Name
         </label>
         <input
@@ -30,7 +33,10 @@ function HolidayForm({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="holiday-date">
+        <label
+          className="mb-1 block text-sm font-medium text-slate-700"
+          htmlFor="holiday-date"
+        >
           Date
         </label>
         <input
