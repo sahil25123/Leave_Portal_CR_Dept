@@ -1,59 +1,128 @@
-import { useNavigate } from "react-router-dom";
-import Navbar from "../components/Navbar";
+import { useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import ErrorAlert from "../components/ErrorAlert";
+import { useAuth } from "../hooks/useAuth";
+
+const ALLOWED_PORTAL_ROLES = ["staff", "dean", "admin"];
 
 function Login() {
   const navigate = useNavigate();
+  const { login, logout, user, isAuthenticated, isAuthLoading } = useAuth();
 
-  const handleSubmit = (event) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(event) {
     event.preventDefault();
-    navigate("/leave-apply");
-  };
+
+    if (!email || !password) {
+      setError("Email and password are required");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError("");
+
+    try {
+      const loggedInUser = await login(email, password);
+
+      if (!ALLOWED_PORTAL_ROLES.includes(loggedInUser.role)) {
+        logout();
+        setError("This role is not allowed to access this portal");
+        return;
+      }
+
+      navigate("/dashboard", { replace: true });
+    } catch (loginError) {
+      setError(loginError.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const hasSupportedRole = ALLOWED_PORTAL_ROLES.includes(user?.role);
+
+  if (!isAuthLoading && isAuthenticated && hasSupportedRole) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (!isAuthLoading && isAuthenticated && !hasSupportedRole) {
+    return (
+      <main className="grid place-items-center p-4 py-10">
+        <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 className="text-2xl font-semibold text-slate-900">Access Restricted</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Role "{user?.role}" is not allowed in this portal.
+          </p>
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-5 w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+          >
+            Sign Out
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
-    <>
-      <main className="grid min-h-screen place-items-center bg-[#ececec] p-6 font-['Segoe_UI',Tahoma,Geneva,Verdana,sans-serif] text-[#1d1d1d]">
-        <section className="w-full max-w-[380px] rounded-xl bg-white p-6 shadow-[0_10px_24px_rgba(0,0,0,0.08)]">
-          <h2 className="mb-5 mt-0 text-center text-[28px] font-semibold">
-            Login
-          </h2>
+    <main className="grid place-items-center p-4 py-10">
+      <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 className="text-2xl font-semibold text-slate-900">Leave Portal Login</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Sign in with your IITD corporate relations account.
+        </p>
 
-          <form className="flex flex-col gap-[10px]" onSubmit={handleSubmit}>
-            <label
-              className="text-sm font-semibold text-[#333]"
-              htmlFor="email"
-            >
+        <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
               Email
             </label>
             <input
-              className="mb-2 w-full rounded-lg border border-[#cfcfcf] px-3 py-[10px] text-sm focus:border-[#be2026] focus:outline-none focus:ring-4 focus:ring-[rgba(190,32,38,0.15)]"
               id="email"
               type="email"
-              placeholder="Enter your email"
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setError("");
+              }}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+              placeholder="name@iitd.ac.in"
             />
+          </div>
 
-            <label
-              className="text-sm font-semibold text-[#333]"
-              htmlFor="password"
-            >
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password">
               Password
             </label>
             <input
-              className="mb-2 w-full rounded-lg border border-[#cfcfcf] px-3 py-[10px] text-sm focus:border-[#be2026] focus:outline-none focus:ring-4 focus:ring-[rgba(190,32,38,0.15)]"
               id="password"
               type="password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setError("");
+              }}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
               placeholder="Enter your password"
             />
+          </div>
 
-            <button
-              className="mt-2 cursor-pointer rounded-lg bg-[#be2026] px-[14px] py-[10px] text-[15px] font-semibold text-white hover:bg-[#a61c21]"
-              type="submit"
-            >
-              Login
-            </button>
-          </form>
-        </section>
-      </main>
-    </>
+          <ErrorAlert message={error} />
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+          >
+            {isSubmitting ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+      </section>
+    </main>
   );
 }
 

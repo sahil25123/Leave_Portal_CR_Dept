@@ -1,6 +1,9 @@
 import {
   applyLeave as applyLeaveService,
   approveByDean as approveByDeanService,
+  getMyLeaveBalance as getMyLeaveBalanceService,
+  getMyLeaveHistory as getMyLeaveHistoryService,
+  getPendingLeavesForDean as getPendingLeavesForDeanService,
   rejectByDean as rejectByDeanService,
 } from "../services/leave.service.js";
 
@@ -95,5 +98,53 @@ export async function rejectByDean(req, res) {
     });
   } catch (error) {
     return handleError(res, error, "Failed to reject leave");
+  }
+}
+
+export async function getMyLeaveHistory(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const leaves = await getMyLeaveHistoryService(req.user.id);
+
+    return res.status(200).json({ leaves });
+  } catch (error) {
+    return handleError(res, error, "Failed to fetch leave history");
+  }
+}
+
+export async function getMyLeaveBalance(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const balance = await getMyLeaveBalanceService(req.user.id);
+
+    return res.status(200).json({ balance });
+  } catch (error) {
+    return handleError(res, error, "Failed to fetch leave balance");
+  }
+}
+
+export async function getPendingLeavesForDean(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const leaves = await getPendingLeavesForDeanService(req.user);
+
+    return res.status(200).json({ leaves });
+  } catch (error) {
+    return handleError(res, error, "Failed to fetch pending leaves");
   }
 }

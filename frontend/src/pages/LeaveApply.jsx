@@ -1,169 +1,177 @@
-import React from 'react'
-import Navbar from '../components/Navbar'
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import AppShell from "../components/AppShell";
+import ErrorAlert from "../components/ErrorAlert";
+import { getApiErrorMessage } from "../services/api";
+import { applyLeaveRequest } from "../services/leave.service";
+
+const INITIAL_FORM = {
+  fromDate: "",
+  toDate: "",
+  reason: "",
+  isHalfDay: false,
+  attachment: "",
+};
 
 function LeaveApply() {
-  const handleSubmit = (event) => {
-    event.preventDefault()
+  const [form, setForm] = useState(INITIAL_FORM);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function updateField(field, value) {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    setIsSubmitting(true);
+
+    try {
+      await applyLeaveRequest({
+        fromDate: form.fromDate,
+        toDate: form.toDate,
+        reason: form.reason,
+        isHalfDay: form.isHalfDay,
+        attachment: form.attachment || undefined,
+      });
+
+      setSuccess("Leave request submitted successfully.");
+      setForm(INITIAL_FORM);
+    } catch (submitError) {
+      setError(getApiErrorMessage(submitError, "Failed to apply leave"));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
-    <>
-     
-
-      <main className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <section className="w-full max-w-4xl rounded-2xl bg-white p-6 shadow-md md:p-8">
-        
-
-        {/* Header */}
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <h1 className="text-2xl md:text-3xl font-semibold text-gray-900">
-            Apply for Leave
-          </h1>
-
-          <button
-            type="button"
-            className="rounded-full border border-red-200 px-5 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-          >
-            Logout
-          </button>
-        </div>
-
-        <p className="mb-6 text-sm text-gray-500">
-          All required fields must be completed.
-        </p>
-
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          
-          {/* GRID */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            
-            {/* Full Name */}
+    <AppShell
+      title="Apply Leave"
+      subtitle="Submit a duty leave request for dean approval."
+    >
+      <section className="rounded-lg border border-slate-200 bg-white p-4 md:p-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Full Name
-              </label>
-              <input
-                type="text"
-                placeholder="Enter your name"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-red-500 outline-none"
-              />
-            </div>
-
-            {/* Contact */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Contact (while on leave)
-              </label>
-              <input
-                type="text"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-red-500 outline-none"
-              />
-            </div>
-
-            {/* Leave Type */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Leave Type
-              </label>
-              <select
-                defaultValue=""
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-red-500 outline-none"
+              <label
+                className="mb-1 block text-sm font-medium text-slate-700"
+                htmlFor="fromDate"
               >
-                <option value="" disabled>
-                  -- Select type --
-                </option>
-                <option value="casual">Casual Leave</option>
-                <option value="sick">Sick Leave</option>
-                <option value="earned">Earned Leave</option>
-              </select>
-            </div>
-
-            {/* From */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                From
+                From Date
               </label>
               <input
+                id="fromDate"
                 type="date"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-red-500 outline-none"
+                value={form.fromDate}
+                onChange={(event) =>
+                  updateField("fromDate", event.target.value)
+                }
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
 
-            {/* To */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                To
-              </label>
-              <input
-                type="date"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-red-500 outline-none"
-              />
-            </div>
-
-            {/* Supervisor */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Choose Supervisor
-              </label>
-              <select
-                defaultValue=""
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-red-500 outline-none"
+              <label
+                className="mb-1 block text-sm font-medium text-slate-700"
+                htmlFor="toDate"
               >
-                <option value="" disabled>
-                  -- Select Supervisor --
-                </option>
-                <option value="supervisor-1">Supervisor 1</option>
-                <option value="supervisor-2">Supervisor 2</option>
-              </select>
-            </div>
-
-            {/* Reason */}
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Reason / Notes
-              </label>
-              <textarea
-                rows="4"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-red-500 outline-none"
-              />
-            </div>
-
-            {/* Attachment */}
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Attachment (optional)
+                To Date
               </label>
               <input
-                type="file"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm file:mr-3 file:rounded-md file:border file:border-gray-300 file:bg-gray-100 file:px-3 file:py-1"
+                id="toDate"
+                type="date"
+                value={form.toDate}
+                onChange={(event) => updateField("toDate", event.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
-
           </div>
 
-          {/* Submit */}
           <div>
+            <label
+              className="mb-1 block text-sm font-medium text-slate-700"
+              htmlFor="reason"
+            >
+              Reason
+            </label>
+            <textarea
+              id="reason"
+              rows="4"
+              value={form.reason}
+              onChange={(event) => updateField("reason", event.target.value)}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Explain why the leave is required"
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <input
+                id="isHalfDay"
+                type="checkbox"
+                checked={form.isHalfDay}
+                onChange={(event) =>
+                  updateField("isHalfDay", event.target.checked)
+                }
+              />
+              <label htmlFor="isHalfDay" className="text-sm text-slate-700">
+                Apply as half day
+              </label>
+            </div>
+
+            <div>
+              <label
+                className="mb-1 block text-sm font-medium text-slate-700"
+                htmlFor="attachment"
+              >
+                Attachment URL (optional)
+              </label>
+              <input
+                id="attachment"
+                type="url"
+                value={form.attachment}
+                onChange={(event) =>
+                  updateField("attachment", event.target.value)
+                }
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                placeholder="https://example.com/document"
+              />
+            </div>
+          </div>
+
+          <ErrorAlert message={error} />
+          {success ? (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+              {success}
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-3">
             <button
               type="submit"
-              className="rounded-full bg-red-700 px-6 py-2 text-sm font-semibold text-white hover:bg-red-800"
+              disabled={isSubmitting}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
-              Submit
+              {isSubmitting ? "Submitting..." : "Submit Leave"}
             </button>
+            <Link
+              to="/dashboard"
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Back to Dashboard
+            </Link>
           </div>
-
-          {/* Link */}
-          <a
-            href="#"
-            className="inline-block text-sm text-gray-600 underline hover:text-gray-800"
-          >
-            View My Leaves
-          </a>
         </form>
-
       </section>
-    </main>
-    </>
-  )
+    </AppShell>
+  );
 }
 
-export default LeaveApply
+export default LeaveApply;

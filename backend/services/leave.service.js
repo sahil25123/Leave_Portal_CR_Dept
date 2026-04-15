@@ -285,3 +285,126 @@ export async function rejectByDean(leaveId, reason, user) {
     return updatedLeave;
   });
 }
+
+export async function getMyLeaveHistory(userId) {
+  return prisma.leave.findMany({
+    where: { userId },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+      fromDate: true,
+      toDate: true,
+      isHalfDay: true,
+      totalDays: true,
+      reason: true,
+      attachment: true,
+      status: true,
+      deanApproved: true,
+      rejectionReason: true,
+      createdAt: true,
+    },
+  });
+}
+
+export async function getMyLeaveBalance(userId) {
+  const year = new Date().getUTCFullYear();
+
+  const leaveBalance = await prisma.leaveBalance.findUnique({
+    where: {
+      userId_year: {
+        userId,
+        year,
+      },
+    },
+    select: {
+      year: true,
+      total: true,
+      used: true,
+      remaining: true,
+    },
+  });
+
+  if (leaveBalance) {
+    return leaveBalance;
+  }
+
+  return prisma.leaveBalance.create({
+    data: {
+      userId,
+      year,
+      total: 30,
+      used: 0,
+      remaining: 30,
+    },
+    select: {
+      year: true,
+      total: true,
+      used: true,
+      remaining: true,
+    },
+  });
+}
+
+export async function getPendingLeavesForDean(user) {
+  ensureActorRole(user, "dean");
+
+  return prisma.leave.findMany({
+    where: {
+      status: "pending_dean",
+      user: {
+        role: "staff",
+      },
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+    select: {
+      id: true,
+      fromDate: true,
+      toDate: true,
+      isHalfDay: true,
+      totalDays: true,
+      reason: true,
+      attachment: true,
+      createdAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          designation: true,
+        },
+      },
+    },
+  });
+}
+
+export async function getAllLeavesForAdmin(user) {
+  ensureActorRole(user, "admin");
+
+  return prisma.leave.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+      fromDate: true,
+      toDate: true,
+      totalDays: true,
+      status: true,
+      reason: true,
+      createdAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          designation: true,
+        },
+      },
+    },
+  });
+}
