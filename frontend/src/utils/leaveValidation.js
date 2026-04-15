@@ -1,4 +1,4 @@
-const MONTHLY_LIMIT = 2.5;
+const DEFAULT_MONTHLY_LIMIT = 2.5;
 
 export function toDateOnly(input) {
   const date = input instanceof Date ? new Date(input) : new Date(input);
@@ -203,6 +203,7 @@ export function checkMonthlyLimitWarning({
   toDate,
   holidayDateSet,
   isHalfDay,
+  monthlyLimit = DEFAULT_MONTHLY_LIMIT,
 }) {
   if (!fromDate || !toDate) {
     return "";
@@ -241,8 +242,12 @@ export function checkMonthlyLimitWarning({
   for (const [monthKey, usage] of requestUsageByMonth.entries()) {
     const existingUsage = existingUsageByMonth.get(monthKey) || 0;
 
-    if (existingUsage + usage > MONTHLY_LIMIT) {
-      return "Monthly limit exceeded (2.5 days)";
+    if (existingUsage + usage > Number(monthlyLimit)) {
+      return (
+        "Monthly limit exceeded (" +
+        Number(Number(monthlyLimit).toFixed(2)) +
+        " days)"
+      );
     }
   }
 

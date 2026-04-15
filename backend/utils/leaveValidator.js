@@ -1,6 +1,20 @@
-const MONTHLY_LIMIT = 2.5;
-const YEARLY_LIMIT = 30;
+const DEFAULT_MONTHLY_LIMIT = 2.5;
+const DEFAULT_YEARLY_LIMIT = 30;
 const EPSILON = 1e-9;
+
+function formatLimitValue(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return String(value);
+  }
+
+  if (Number.isInteger(numericValue)) {
+    return String(numericValue);
+  }
+
+  return String(Number(numericValue.toFixed(2)));
+}
 
 export function toDateOnly(input) {
   const date = new Date(input);
@@ -171,6 +185,7 @@ export function validateMonthlyLimit({
   newToDate,
   holidays,
   isHalfDay,
+  monthlyLimit = DEFAULT_MONTHLY_LIMIT,
 }) {
   const holidaySet = buildHolidayDateSet(holidays);
   const existingUsageByMonth = new Map();
@@ -206,22 +221,32 @@ export function validateMonthlyLimit({
   for (const [monthKey, requestedDays] of requestedUsageByMonth.entries()) {
     const currentDays = existingUsageByMonth.get(monthKey) || 0;
 
-    if (currentDays + requestedDays > MONTHLY_LIMIT + EPSILON) {
-      throw new Error("Monthly limit exceeded (2.5 days)");
+    if (currentDays + requestedDays > Number(monthlyLimit) + EPSILON) {
+      throw new Error(
+        "Monthly limit exceeded (" + formatLimitValue(monthlyLimit) + " days)",
+      );
     }
   }
 }
 
-export function validateYearlyLimit(remainingBalance, requestedDays) {
+export function validateYearlyLimit(
+  remainingBalance,
+  requestedDays,
+  yearlyLimit = DEFAULT_YEARLY_LIMIT,
+) {
   const remaining = Number(remainingBalance);
   const requested = Number(requestedDays);
+  const limit = Number(yearlyLimit);
 
   if (
     !Number.isFinite(remaining) ||
     !Number.isFinite(requested) ||
-    requested > YEARLY_LIMIT + EPSILON ||
+    !Number.isFinite(limit) ||
+    requested > limit + EPSILON ||
     requested > remaining + EPSILON
   ) {
-    throw new Error("Yearly limit exceeded (30 days)");
+    throw new Error(
+      "Yearly limit exceeded (" + formatLimitValue(limit) + " days)",
+    );
   }
 }

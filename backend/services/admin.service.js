@@ -1,5 +1,9 @@
 import bcrypt from "bcrypt";
 import prisma from "../config/prisma.js";
+import {
+  ensureLeaveBalanceForYear,
+  getActiveYearOrNull,
+} from "./year.service.js";
 
 const ALLOWED_ROLES = new Set(["staff", "dean", "admin"]);
 const SALT_ROUNDS = 10;
@@ -84,28 +88,11 @@ export async function createUser(currentUser, payload) {
     },
   });
 
-  const currentYear = new Date().getUTCFullYear();
+  const activeYear = await getActiveYearOrNull();
 
-  await prisma.leaveBalance.upsert({
-    where: {
-      userId_year: {
-        userId: user.id,
-        year: currentYear,
-      },
-    },
-    update: {
-      total: 30,
-      used: 0,
-      remaining: 30,
-    },
-    create: {
-      userId: user.id,
-      year: currentYear,
-      total: 30,
-      used: 0,
-      remaining: 30,
-    },
-  });
+  if (activeYear) {
+    await ensureLeaveBalanceForYear(user.id, activeYear);
+  }
 
   return user;
 }

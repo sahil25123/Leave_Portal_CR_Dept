@@ -75,7 +75,7 @@ async function upsertUserAndLeaveBalance(
   tx,
   userData,
   hashedPassword,
-  currentYear,
+  leaveYear,
 ) {
   const user = await tx.user.upsert({
     where: { email: userData.email },
@@ -96,22 +96,24 @@ async function upsertUserAndLeaveBalance(
 
   await tx.leaveBalance.upsert({
     where: {
-      userId_year: {
+      userId_yearId: {
         userId: user.id,
-        year: currentYear,
+        yearId: leaveYear.id,
       },
     },
     update: {
-      total: DEFAULT_TOTAL_LEAVES,
+      year: leaveYear.startDate.getUTCFullYear(),
+      total: leaveYear.yearlyLimit,
       used: 0,
-      remaining: DEFAULT_TOTAL_LEAVES,
+      remaining: leaveYear.yearlyLimit,
     },
     create: {
       userId: user.id,
-      year: currentYear,
-      total: DEFAULT_TOTAL_LEAVES,
+      yearId: leaveYear.id,
+      year: leaveYear.startDate.getUTCFullYear(),
+      total: leaveYear.yearlyLimit,
       used: 0,
-      remaining: DEFAULT_TOTAL_LEAVES,
+      remaining: leaveYear.yearlyLimit,
     },
   });
 
@@ -119,12 +121,46 @@ async function upsertUserAndLeaveBalance(
 }
 
 export async function main() {
-  const currentYear = new Date().getFullYear();
+  const currentYear = new Date().getUTCFullYear();
+  const startDate = new Date(Date.UTC(currentYear, 0, 1));
+  const endDate = new Date(Date.UTC(currentYear, 11, 31));
   const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, SALT_ROUNDS);
+
+  const leaveYear = await prisma.leaveYear.upsert({
+    where: {
+      name: String(currentYear),
+    },
+    update: {
+      startDate,
+      endDate,
+      isActive: true,
+      monthlyLimit: 2.5,
+      yearlyLimit: DEFAULT_TOTAL_LEAVES,
+    },
+    create: {
+      name: String(currentYear),
+      startDate,
+      endDate,
+      isActive: true,
+      monthlyLimit: 2.5,
+      yearlyLimit: DEFAULT_TOTAL_LEAVES,
+    },
+  });
+
+  await prisma.leaveYear.updateMany({
+    where: {
+      id: {
+        not: leaveYear.id,
+      },
+    },
+    data: {
+      isActive: false,
+    },
+  });
 
   for (const userData of usersToSeed) {
     const user = await prisma.$transaction((tx) =>
-      upsertUserAndLeaveBalance(tx, userData, hashedPassword, currentYear),
+      upsertUserAndLeaveBalance(tx, userData, hashedPassword, leaveYear),
     );
 
     console.log(`Seeded user: ${user.email}`);

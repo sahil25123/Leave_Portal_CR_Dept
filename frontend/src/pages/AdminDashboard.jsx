@@ -4,6 +4,13 @@ import AppShell from "../components/AppShell";
 function AdminDashboard() {
   const cards = [
     {
+      title: "Year Management",
+      description:
+        "Define leave cycles and activate the year used by validations.",
+      to: "/admin/years",
+      cta: "Manage Years",
+    },
+    {
       title: "User Management",
       description: "Create and manage staff, dean, and admin accounts.",
       to: "/admin/users",
@@ -28,7 +35,7 @@ function AdminDashboard() {
       title="Admin Dashboard"
       subtitle="Manage users, holidays, and leave visibility across the portal."
     >
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         {cards.map((card) => (
           <article
             key={card.to}

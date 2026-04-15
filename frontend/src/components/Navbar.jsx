@@ -14,6 +14,7 @@ function Navbar() {
     { to: "/apply-leave", label: "Apply Leave", roles: ["staff"] },
     { to: "/approvals", label: "Approvals", roles: ["dean"] },
     { to: "/admin", label: "Admin", roles: ["admin"] },
+    { to: "/admin/years", label: "Years", roles: ["admin"] },
     { to: "/admin/users", label: "Users", roles: ["admin"] },
     { to: "/admin/holidays", label: "Holidays", roles: ["admin"] },
     { to: "/admin/leaves", label: "All Leaves", roles: ["admin"] },
@@ -43,7 +44,10 @@ function Navbar() {
     }
 
     function handleOutsideClick(event) {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+      if (
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(event.target)
+      ) {
         setIsProfileMenuOpen(false);
       }
     }
@@ -71,7 +75,9 @@ function Navbar() {
             className="h-12 w-auto object-contain"
           />
           <div className="min-w-0">
-            <p className="truncate text-lg font-semibold text-slate-900">Corporate Relations</p>
+            <p className="truncate text-lg font-semibold text-slate-900">
+              Corporate Relations
+            </p>
             <p className="text-xs text-slate-500">Leave Management System</p>
           </div>
         </div>
@@ -109,8 +115,12 @@ function Navbar() {
 
               {isProfileMenuOpen ? (
                 <div className="absolute right-0 z-10 mt-2 w-56 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
-                  <p className="text-sm font-semibold text-slate-900">{user?.name}</p>
-                  <p className="mb-3 text-xs uppercase tracking-wide text-slate-500">{user?.role}</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {user?.name}
+                  </p>
+                  <p className="mb-3 text-xs uppercase tracking-wide text-slate-500">
+                    {user?.role}
+                  </p>
                   <button
                     type="button"
                     onClick={handleLogout}

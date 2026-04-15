@@ -7,6 +7,8 @@ import { getApiErrorMessage } from "../services/api";
 import {
   applyLeaveRequest,
   getLeaveHolidaysRequest,
+  getMonthlyLeaveSummaryRequest,
+  getMyLeaveBalanceRequest,
   getMyLeaveHistoryRequest,
 } from "../services/leave.service";
 import {
@@ -45,6 +47,8 @@ function LeaveApply() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [holidays, setHolidays] = useState([]);
   const [history, setHistory] = useState([]);
+  const [monthlySummary, setMonthlySummary] = useState([]);
+  const [balance, setBalance] = useState(null);
   const [isLoadingContext, setIsLoadingContext] = useState(true);
   const [contextError, setContextError] = useState("");
   const [fieldError, setFieldError] = useState("");
@@ -73,6 +77,14 @@ function LeaveApply() {
 
   const fromDate = useMemo(() => toDateOnly(form.fromDate), [form.fromDate]);
   const toDate = useMemo(() => toDateOnly(form.toDate), [form.toDate]);
+  const activeYearStart = useMemo(
+    () => toDateOnly(balance?.startDate),
+    [balance?.startDate],
+  );
+  const activeYearEnd = useMemo(
+    () => toDateOnly(balance?.endDate),
+    [balance?.endDate],
+  );
   const calculatedDays = useMemo(() => {
     return calculateWorkingDays(
       form.fromDate,
@@ -82,19 +94,78 @@ function LeaveApply() {
     );
   }, [form.fromDate, form.toDate, form.isHalfDay, holidayDateSet]);
 
+  const selectedMonthDate = useMemo(() => {
+    return toDateOnly(form.fromDate) || toDateOnly(new Date());
+  }, [form.fromDate]);
+
+  const selectedMonthKey = useMemo(() => {
+    if (!selectedMonthDate) {
+      return "";
+    }
+
+    return (
+      String(selectedMonthDate.getUTCFullYear()) +
+      "-" +
+      String(selectedMonthDate.getUTCMonth() + 1).padStart(2, "0")
+    );
+  }, [selectedMonthDate]);
+
+  const selectedMonthLabel = useMemo(() => {
+    if (!selectedMonthDate) {
+      return "";
+    }
+
+    return selectedMonthDate.toLocaleString("en-IN", {
+      month: "long",
+      timeZone: "UTC",
+    });
+  }, [selectedMonthDate]);
+
+  const selectedMonthUsage = useMemo(() => {
+    return (
+      monthlySummary.find(
+        (entry) =>
+          entry.monthKey === selectedMonthKey ||
+          entry.month === selectedMonthLabel,
+      ) || null
+    );
+  }, [monthlySummary, selectedMonthKey, selectedMonthLabel]);
+
+  const monthlyLimit = Number(
+    balance?.monthlyLimit || selectedMonthUsage?.limit || 2.5,
+  );
+  const currentMonthUsed = Number(selectedMonthUsage?.used || 0);
+  const projectedMonthUsage = Number(
+    (currentMonthUsed + (calculatedDays || 0)).toFixed(2),
+  );
+  const activeYearHistory = useMemo(() => {
+    if (!balance?.yearId) {
+      return history;
+    }
+
+    return history.filter(
+      (leave) => Number(leave?.yearId) === Number(balance.yearId),
+    );
+  }, [balance?.yearId, history]);
+
   useEffect(() => {
     async function loadApplyLeaveContext() {
       setIsLoadingContext(true);
       setContextError("");
 
       try {
-        const [holidayRows, historyRows] = await Promise.all([
-          getLeaveHolidaysRequest(),
-          getMyLeaveHistoryRequest(),
-        ]);
+        const [holidayRows, historyRows, monthlySummaryRows, balanceData] =
+          await Promise.all([
+            getLeaveHolidaysRequest(),
+            getMyLeaveHistoryRequest(),
+            getMonthlyLeaveSummaryRequest(),
+            getMyLeaveBalanceRequest(),
+          ]);
 
         setHolidays(holidayRows);
         setHistory(historyRows);
+        setMonthlySummary(monthlySummaryRows);
+        setBalance(balanceData);
       } catch (loadError) {
         setContextError(
           getApiErrorMessage(loadError, "Failed to load leave validations"),
@@ -118,6 +189,14 @@ function LeaveApply() {
     if (!fromDate || !toDate || fromDate > toDate) {
       errors.push("Invalid date range");
       return { errors, warnings };
+    }
+
+    if (
+      activeYearStart &&
+      activeYearEnd &&
+      (fromDate < activeYearStart || toDate > activeYearEnd)
+    ) {
+      errors.push("Leave must be within active year");
     }
 
     if (isPastDate(fromDate) || isPastDate(toDate)) {
@@ -144,7 +223,7 @@ function LeaveApply() {
     }
 
     const overlapWarning = checkOverlapWarning({
-      leaves: history,
+      leaves: activeYearHistory,
       fromDate,
       toDate,
       isHalfDay: form.isHalfDay,
@@ -156,11 +235,12 @@ function LeaveApply() {
     }
 
     const monthlyWarning = checkMonthlyLimitWarning({
-      leaves: history,
+      leaves: activeYearHistory,
       fromDate,
       toDate,
       holidayDateSet,
       isHalfDay: form.isHalfDay,
+      monthlyLimit,
     });
 
     if (monthlyWarning) {
@@ -172,13 +252,16 @@ function LeaveApply() {
       warnings: [...new Set(warnings)],
     };
   }, [
+    activeYearEnd,
+    activeYearStart,
     calculatedDays,
     form.fromDate,
     form.halfDayType,
     form.isHalfDay,
     form.toDate,
     fromDate,
-    history,
+    activeYearHistory,
+    monthlyLimit,
     holidayDateSet,
     toDate,
   ]);
@@ -228,6 +311,18 @@ function LeaveApply() {
 
     if (isPastDate(value)) {
       setFieldError("Past dates cannot be selected");
+      return;
+    }
+
+    const selectedDate = toDateOnly(value);
+
+    if (
+      activeYearStart &&
+      activeYearEnd &&
+      selectedDate &&
+      (selectedDate < activeYearStart || selectedDate > activeYearEnd)
+    ) {
+      setFieldError("Date must be within active year");
       return;
     }
 
@@ -398,6 +493,34 @@ function LeaveApply() {
               Calculated Leave Days:
             </span>{" "}
             {calculatedDays || 0}
+          </div>
+
+          {balance?.yearName ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <span className="font-semibold text-slate-900">
+                Active Leave Year:
+              </span>{" "}
+              {balance.yearName}
+              {balance.startDate && balance.endDate ? (
+                <p className="mt-1 text-xs text-slate-600">
+                  {toDateKey(balance.startDate)} to {toDateKey(balance.endDate)}{" "}
+                  | Yearly Limit: {balance.yearlyLimit}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <span className="font-semibold text-slate-900">
+              {selectedMonthLabel} Usage:
+            </span>{" "}
+            {currentMonthUsed} / {monthlyLimit}
+            {form.fromDate && calculatedDays > 0 ? (
+              <p className="mt-1 text-xs text-slate-600">
+                Projected after this request: {projectedMonthUsage} /{" "}
+                {monthlyLimit}
+              </p>
+            ) : null}
           </div>
 
           <div>

@@ -8,6 +8,7 @@ import {
   validateMonthlyLimit,
   validateYearlyLimit,
 } from "../utils/leaveValidator.js";
+import { ensureLeaveBalanceForYear, getActiveYear } from "./year.service.js";
 
 const { NotificationType } = prismaPkg;
 
@@ -38,6 +39,91 @@ function parseBoolean(value) {
     .toLowerCase();
 
   return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
+function toDateKey(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+
+  return year + "-" + month + "-" + day;
+}
+
+function toMonthKey(date) {
+  return (
+    String(date.getUTCFullYear()) +
+    "-" +
+    String(date.getUTCMonth() + 1).padStart(2, "0")
+  );
+}
+
+function buildHolidayDateSet(holidays = []) {
+  const holidaySet = new Set();
+
+  for (const holiday of holidays) {
+    const holidayDate = toDateOnly(holiday?.date ?? holiday);
+
+    if (holidayDate) {
+      holidaySet.add(toDateKey(holidayDate));
+    }
+  }
+
+  return holidaySet;
+}
+
+function calculateWorkingDaysByMonthWithHolidaySet(
+  fromDate,
+  toDate,
+  holidaySet,
+  isHalfDay,
+) {
+  const usageByMonth = new Map();
+
+  for (
+    let cursor = new Date(fromDate);
+    cursor <= toDate;
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  ) {
+    const isSunday = cursor.getUTCDay() === 0;
+
+    if (isSunday || holidaySet.has(toDateKey(cursor))) {
+      continue;
+    }
+
+    const monthKey = toMonthKey(cursor);
+    const currentDays = usageByMonth.get(monthKey) || 0;
+    usageByMonth.set(monthKey, currentDays + 1);
+  }
+
+  if (isHalfDay && usageByMonth.size > 0) {
+    const firstMonthKey = usageByMonth.keys().next().value;
+    usageByMonth.set(firstMonthKey, 0.5);
+  }
+
+  return usageByMonth;
+}
+
+function getUtcMonthRangeFromDate(referenceDate) {
+  const year = referenceDate.getUTCFullYear();
+  const month = referenceDate.getUTCMonth();
+
+  const monthStart = new Date(Date.UTC(year, month, 1));
+  const monthEnd = new Date(Date.UTC(year, month + 1, 0));
+
+  return { monthStart, monthEnd };
+}
+
+function ensureDateWithinYear(fromDate, toDate, leaveYear) {
+  const yearStart = toDateOnly(leaveYear.startDate);
+  const yearEnd = toDateOnly(leaveYear.endDate);
+
+  if (!yearStart || !yearEnd) {
+    throw new Error("Active leave year is invalid");
+  }
+
+  if (fromDate < yearStart || toDate > yearEnd) {
+    throw new Error("Leave must be within active year");
+  }
 }
 
 function ensureActorRole(actor, expectedRole) {
@@ -107,6 +193,14 @@ async function getLeaveWithApplicant(leaveId) {
           name: true,
         },
       },
+      leaveYear: {
+        select: {
+          id: true,
+          name: true,
+          yearlyLimit: true,
+          monthlyLimit: true,
+        },
+      },
     },
   });
 
@@ -147,6 +241,8 @@ export async function applyLeave(userId, data) {
     throw new Error("Only staff can apply for leave");
   }
 
+  const activeYear = await getActiveYear();
+
   const { parsedFromDate, parsedToDate } = parseAndValidateDates(
     fromDate,
     toDate,
@@ -169,6 +265,8 @@ export async function applyLeave(userId, data) {
   ) {
     throw new Error("halfDayType must be first_half or second_half");
   }
+
+  ensureDateWithinYear(parsedFromDate, parsedToDate, activeYear);
 
   const holidays = await prisma.holiday.findMany({
     select: { date: true },
@@ -195,6 +293,7 @@ export async function applyLeave(userId, data) {
   const overlappingLeaves = await prisma.leave.findMany({
     where: {
       userId,
+      yearId: activeYear.id,
       status: {
         not: "rejected",
       },
@@ -207,6 +306,7 @@ export async function applyLeave(userId, data) {
     },
     select: {
       id: true,
+      yearId: true,
       fromDate: true,
       toDate: true,
       isHalfDay: true,
@@ -232,6 +332,7 @@ export async function applyLeave(userId, data) {
   const monthlyLeaves = await prisma.leave.findMany({
     where: {
       userId,
+      yearId: activeYear.id,
       status: {
         not: "rejected",
       },
@@ -257,30 +358,16 @@ export async function applyLeave(userId, data) {
     newToDate: parsedToDate,
     holidays,
     isHalfDay: isHalfDayLeave,
+    monthlyLimit: activeYear.monthlyLimit,
   });
 
-  const leaveYear = parsedFromDate.getUTCFullYear();
-  const leaveBalance = await prisma.leaveBalance.upsert({
-    where: {
-      userId_year: {
-        userId,
-        year: leaveYear,
-      },
-    },
-    update: {},
-    create: {
-      userId,
-      year: leaveYear,
-      total: 30,
-      used: 0,
-      remaining: 30,
-    },
-    select: {
-      remaining: true,
-    },
-  });
+  const leaveBalance = await ensureLeaveBalanceForYear(userId, activeYear);
 
-  validateYearlyLimit(leaveBalance.remaining, totalDays);
+  validateYearlyLimit(
+    leaveBalance.remaining,
+    totalDays,
+    activeYear.yearlyLimit,
+  );
 
   const approver = await prisma.user.findFirst({
     where: {
@@ -299,6 +386,7 @@ export async function applyLeave(userId, data) {
     const createdLeave = await tx.leave.create({
       data: {
         userId,
+        yearId: activeYear.id,
         fromDate: parsedFromDate,
         toDate: parsedToDate,
         totalDays,
@@ -339,14 +427,16 @@ export async function approveByDean(leaveId, user) {
     throw new Error("Dean can only approve staff leave requests");
   }
 
-  const leaveYear = leave.fromDate.getUTCFullYear();
+  if (!leave.yearId || !leave.leaveYear) {
+    throw new Error("Leave year not found for this request");
+  }
 
   return prisma.$transaction(async (tx) => {
     const leaveBalance = await tx.leaveBalance.findUnique({
       where: {
-        userId_year: {
+        userId_yearId: {
           userId: leave.userId,
-          year: leaveYear,
+          yearId: leave.yearId,
         },
       },
       select: {
@@ -359,9 +449,11 @@ export async function approveByDean(leaveId, user) {
       throw new Error("Leave balance not found for this year");
     }
 
-    if (leaveBalance.remaining < leave.totalDays) {
-      throw new Error("Insufficient leave balance");
-    }
+    validateYearlyLimit(
+      leaveBalance.remaining,
+      leave.totalDays,
+      leave.leaveYear.yearlyLimit,
+    );
 
     const updatedLeave = await tx.leave.update({
       where: { id: leave.id },
@@ -464,73 +556,84 @@ export async function getMyLeaveHistory(userId) {
 }
 
 export async function getMyLeaveBalance(userId) {
-  const year = new Date().getUTCFullYear();
+  const activeYear = await getActiveYear();
+  const leaveBalance = await ensureLeaveBalanceForYear(userId, activeYear);
 
-  const leaveBalance = await prisma.leaveBalance.findUnique({
-    where: {
-      userId_year: {
-        userId,
-        year,
-      },
-    },
-    select: {
-      year: true,
-      total: true,
-      used: true,
-      remaining: true,
-    },
-  });
-
-  if (leaveBalance) {
-    return leaveBalance;
-  }
-
-  return prisma.leaveBalance.create({
-    data: {
-      userId,
-      year,
-      total: 30,
-      used: 0,
-      remaining: 30,
-    },
-    select: {
-      year: true,
-      total: true,
-      used: true,
-      remaining: true,
-    },
-  });
+  return {
+    yearId: activeYear.id,
+    yearName: activeYear.name,
+    startDate: activeYear.startDate,
+    endDate: activeYear.endDate,
+    monthlyLimit: activeYear.monthlyLimit,
+    yearlyLimit: activeYear.yearlyLimit,
+    total: leaveBalance.total,
+    used: leaveBalance.used,
+    remaining: leaveBalance.remaining,
+  };
 }
 
 export async function getMonthlyLeaveSummary(userId) {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const yearStart = new Date(Date.UTC(year, 0, 1));
-  const nextYearStart = new Date(Date.UTC(year + 1, 0, 1));
+  const activeYear = await getActiveYear();
+  const [yearStart, yearEnd] = [
+    toDateOnly(activeYear.startDate),
+    toDateOnly(activeYear.endDate),
+  ];
 
-  const leaves = await prisma.leave.findMany({
-    where: {
-      userId,
-      status: {
-        not: "rejected",
+  if (!yearStart || !yearEnd) {
+    throw new Error("Active leave year is invalid");
+  }
+
+  const [leaves, holidays] = await Promise.all([
+    prisma.leave.findMany({
+      where: {
+        userId,
+        yearId: activeYear.id,
+        status: {
+          not: "rejected",
+        },
       },
-      fromDate: {
-        gte: yearStart,
-        lt: nextYearStart,
+      select: {
+        fromDate: true,
+        toDate: true,
+        isHalfDay: true,
       },
-    },
-    select: {
-      fromDate: true,
-      totalDays: true,
-    },
-  });
+    }),
+    prisma.holiday.findMany({
+      select: {
+        date: true,
+      },
+    }),
+  ]);
 
   const monthlyTotals = new Map();
+  const holidaySet = buildHolidayDateSet(holidays);
 
   for (const leave of leaves) {
-    const monthIndex = leave.fromDate.getUTCMonth();
-    const currentTotal = monthlyTotals.get(monthIndex) || 0;
-    monthlyTotals.set(monthIndex, currentTotal + Number(leave.totalDays || 0));
+    const leaveStart = toDateOnly(leave.fromDate);
+    const leaveEnd = toDateOnly(leave.toDate);
+
+    if (!leaveStart || !leaveEnd) {
+      continue;
+    }
+
+    const effectiveStart = leaveStart > yearStart ? leaveStart : yearStart;
+    const effectiveEnd = leaveEnd < yearEnd ? leaveEnd : yearEnd;
+
+    if (effectiveStart > effectiveEnd) {
+      continue;
+    }
+
+    const usageByMonth = calculateWorkingDaysByMonthWithHolidaySet(
+      effectiveStart,
+      effectiveEnd,
+      holidaySet,
+      leave.isHalfDay === true,
+    );
+
+    for (const [monthKey, days] of usageByMonth.entries()) {
+      const currentTotal = monthlyTotals.get(monthKey) || 0;
+      monthlyTotals.set(monthKey, currentTotal + days);
+    }
   }
 
   const monthFormatter = new Intl.DateTimeFormat("en-IN", {
@@ -539,18 +642,27 @@ export async function getMonthlyLeaveSummary(userId) {
   });
 
   return [...monthlyTotals.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([monthIndex, totalDays]) => ({
-      month: monthFormatter.format(new Date(Date.UTC(year, monthIndex, 1))),
-      totalDays: Number(totalDays.toFixed(2)),
-    }));
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([monthKey, totalDays]) => {
+      const [year, month] = monthKey.split("-").map(Number);
+
+      return {
+        monthKey,
+        month: monthFormatter.format(new Date(Date.UTC(year, month - 1, 1))),
+        used: Number(totalDays.toFixed(2)),
+        limit: Number(activeYear.monthlyLimit),
+      };
+    });
 }
 
 export async function getPendingLeavesForDean(user) {
   ensureActorRole(user, "dean");
 
+  const activeYear = await getActiveYear();
+
   return prisma.leave.findMany({
     where: {
+      yearId: activeYear.id,
       status: "pending_dean",
       user: {
         role: "staff",
@@ -588,12 +700,14 @@ export async function getPendingLeaves(user) {
 export async function getDeanDashboardOverview(user) {
   ensureActorRole(user, "dean");
 
+  const activeYear = await getActiveYear();
   const now = new Date();
   const { monthStart, monthEnd, nextMonthStart } = getUtcMonthRange(now);
 
   const [monthlyRequests, approvedLeaves, holidays] = await Promise.all([
     prisma.leave.findMany({
       where: {
+        yearId: activeYear.id,
         createdAt: {
           gte: monthStart,
           lt: nextMonthStart,
@@ -623,6 +737,7 @@ export async function getDeanDashboardOverview(user) {
     }),
     prisma.leave.findMany({
       where: {
+        yearId: activeYear.id,
         status: "approved",
         fromDate: {
           lte: monthEnd,
@@ -741,111 +856,132 @@ export async function getDeanDashboardOverview(user) {
 export async function getLeaveUserDetailsForDean(userId, actor) {
   ensureActorRole(actor, "dean");
 
+  const activeYear = await getActiveYear();
   const now = new Date();
-  const year = now.getUTCFullYear();
-  const { monthStart, nextMonthStart } = getUtcMonthRange(now);
-  const monthlyWindowFilter = {
-    userId,
-    fromDate: {
-      gte: monthStart,
-      lt: nextMonthStart,
-    },
-  };
+  const { monthStart, monthEnd } = getUtcMonthRangeFromDate(now);
 
-  const [
-    targetUser,
-    leaveBalance,
-    monthlyTotalAggregate,
-    monthlyApprovedAggregate,
-    monthlyPendingAggregate,
-    monthlyRequestCount,
-    lastLeaves,
-  ] = await prisma.$transaction([
-    prisma.user.findFirst({
-      where: {
-        id: userId,
-        role: "staff",
-      },
-      select: {
-        id: true,
-        name: true,
-        designation: true,
-      },
-    }),
-    prisma.leaveBalance.findUnique({
-      where: {
-        userId_year: {
+  const [targetUser, leaveBalance, monthlyLeaves, lastLeaves, holidays] =
+    await prisma.$transaction([
+      prisma.user.findFirst({
+        where: {
+          id: userId,
+          role: "staff",
+        },
+        select: {
+          id: true,
+          name: true,
+          designation: true,
+        },
+      }),
+      prisma.leaveBalance.findUnique({
+        where: {
+          userId_yearId: {
+            userId,
+            yearId: activeYear.id,
+          },
+        },
+        select: {
+          total: true,
+          used: true,
+          remaining: true,
+        },
+      }),
+      prisma.leave.findMany({
+        where: {
           userId,
-          year,
+          yearId: activeYear.id,
+          fromDate: {
+            lte: monthEnd,
+          },
+          toDate: {
+            gte: monthStart,
+          },
+          status: {
+            not: "rejected",
+          },
         },
-      },
-      select: {
-        total: true,
-        used: true,
-        remaining: true,
-      },
-    }),
-    prisma.leave.aggregate({
-      where: {
-        ...monthlyWindowFilter,
-        status: {
-          not: "rejected",
+        select: {
+          id: true,
+          fromDate: true,
+          toDate: true,
+          isHalfDay: true,
+          status: true,
         },
-      },
-      _sum: {
-        totalDays: true,
-      },
-    }),
-    prisma.leave.aggregate({
-      where: {
-        ...monthlyWindowFilter,
-        status: "approved",
-      },
-      _sum: {
-        totalDays: true,
-      },
-    }),
-    prisma.leave.aggregate({
-      where: {
-        ...monthlyWindowFilter,
-        status: "pending_dean",
-      },
-      _sum: {
-        totalDays: true,
-      },
-    }),
-    prisma.leave.count({
-      where: {
-        ...monthlyWindowFilter,
-        status: {
-          not: "rejected",
+      }),
+      prisma.leave.findMany({
+        where: {
+          userId,
+          yearId: activeYear.id,
         },
-      },
-    }),
-    prisma.leave.findMany({
-      where: { userId },
-      orderBy: {
-        fromDate: "desc",
-      },
-      take: 5,
-      select: {
-        fromDate: true,
-        toDate: true,
-        totalDays: true,
-        status: true,
-      },
-    }),
-  ]);
+        orderBy: {
+          fromDate: "desc",
+        },
+        take: 5,
+        select: {
+          id: true,
+          fromDate: true,
+          toDate: true,
+          totalDays: true,
+          status: true,
+        },
+      }),
+      prisma.holiday.findMany({
+        select: {
+          date: true,
+        },
+      }),
+    ]);
 
   if (!targetUser) {
     throw new Error("User not found");
   }
 
-  const monthlyTotal = Number(monthlyTotalAggregate?._sum?.totalDays || 0);
-  const monthlyApproved = Number(
-    monthlyApprovedAggregate?._sum?.totalDays || 0,
-  );
-  const monthlyPending = Number(monthlyPendingAggregate?._sum?.totalDays || 0);
+  let monthlyTotal = 0;
+  let monthlyApproved = 0;
+  let monthlyPending = 0;
+  let monthlyRequestCount = 0;
+
+  for (const leave of monthlyLeaves) {
+    const leaveStart = toDateOnly(leave.fromDate);
+    const leaveEnd = toDateOnly(leave.toDate);
+
+    if (!leaveStart || !leaveEnd) {
+      continue;
+    }
+
+    const intersection = getDateIntersection(
+      leaveStart,
+      leaveEnd,
+      monthStart,
+      monthEnd,
+    );
+
+    if (!intersection) {
+      continue;
+    }
+
+    const days = calculateWorkingDays(
+      intersection.start,
+      intersection.end,
+      holidays,
+      leave.isHalfDay === true,
+    );
+
+    if (days <= 0) {
+      continue;
+    }
+
+    monthlyTotal += days;
+    monthlyRequestCount += 1;
+
+    if (leave.status === "approved") {
+      monthlyApproved += days;
+    }
+
+    if (leave.status === "pending_dean") {
+      monthlyPending += days;
+    }
+  }
 
   return {
     user: {
@@ -853,9 +989,9 @@ export async function getLeaveUserDetailsForDean(userId, actor) {
       designation: targetUser.designation,
     },
     leaveBalance: leaveBalance || {
-      total: 30,
+      total: activeYear.yearlyLimit,
       used: 0,
-      remaining: 30,
+      remaining: activeYear.yearlyLimit,
     },
     monthlyUsage: {
       month: formatMonthLabel(now),
@@ -863,6 +999,15 @@ export async function getLeaveUserDetailsForDean(userId, actor) {
       approvedDays: Number(monthlyApproved.toFixed(2)),
       pendingDays: Number(monthlyPending.toFixed(2)),
       requestCount: monthlyRequestCount,
+      limit: Number(activeYear.monthlyLimit),
+    },
+    activeYear: {
+      id: activeYear.id,
+      name: activeYear.name,
+      startDate: activeYear.startDate,
+      endDate: activeYear.endDate,
+      monthlyLimit: activeYear.monthlyLimit,
+      yearlyLimit: activeYear.yearlyLimit,
     },
     lastLeaves,
     previousLeaves: lastLeaves,

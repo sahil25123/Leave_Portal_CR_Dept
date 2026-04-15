@@ -69,6 +69,7 @@ function ApprovalModal({
   const userEmail = details?.user?.email || leave.user?.email;
   const leaveBalance = details?.leaveBalance;
   const monthlyUsage = details?.monthlyUsage;
+  const activeYear = details?.activeYear;
   const previousLeaves = details?.lastLeaves || details?.previousLeaves || [];
   const attachmentUrl = resolveUploadUrl(leave.attachment);
 
@@ -175,6 +176,11 @@ function ApprovalModal({
                   <p className="text-xs uppercase tracking-wide text-slate-500">
                     Leave Balance
                   </p>
+                  {activeYear?.name ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      {activeYear.name}
+                    </p>
+                  ) : null}
                   <p className="mt-2 text-sm text-slate-700">
                     Total: {leaveBalance?.total ?? 0}
                   </p>
@@ -183,6 +189,10 @@ function ApprovalModal({
                   </p>
                   <p className="text-sm font-semibold text-slate-900">
                     Remaining: {leaveBalance?.remaining ?? 0}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Yearly Limit:{" "}
+                    {activeYear?.yearlyLimit ?? leaveBalance?.total ?? 0}
                   </p>
                 </article>
 
@@ -201,6 +211,11 @@ function ApprovalModal({
                   </p>
                   <p className="text-sm text-slate-700">
                     Pending: {monthlyUsage?.pendingDays ?? 0} day(s)
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Limit:{" "}
+                    {monthlyUsage?.limit ?? activeYear?.monthlyLimit ?? 0}{" "}
+                    day(s)
                   </p>
                 </article>
               </section>

@@ -74,12 +74,26 @@ function StaffDashboard() {
 
       {!isLoading && balance ? (
         <div className="space-y-6">
-          <section className="grid gap-3 md:grid-cols-3">
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <article className="rounded-lg border border-slate-200 bg-white p-4">
               <p className="text-sm text-slate-500">Total</p>
               <p className="text-2xl font-bold text-slate-900">
                 {balance.total}
               </p>
+            </article>
+            <article className="rounded-lg border border-slate-200 bg-white p-4">
+              <h3 className="text-base font-semibold text-slate-900">
+                Active Leave Year
+              </h3>
+              <p className="mt-1 text-sm text-slate-700">
+                {balance.yearName || "Not configured"}
+              </p>
+              {balance.startDate && balance.endDate ? (
+                <p className="text-sm text-slate-600">
+                  {formatDate(balance.startDate)} to{" "}
+                  {formatDate(balance.endDate)}
+                </p>
+              ) : null}
             </article>
             <article className="rounded-lg border border-slate-200 bg-white p-4">
               <p className="text-sm text-slate-500">Used</p>
@@ -108,14 +122,14 @@ function StaffDashboard() {
               <div className="grid gap-2 md:grid-cols-2">
                 {monthlySummary.map((entry) => (
                   <article
-                    key={entry.month}
+                    key={entry.monthKey || entry.month + "-" + entry.limit}
                     className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
                   >
                     <p className="text-sm font-semibold text-slate-900">
                       {entry.month}
                     </p>
                     <p className="text-sm text-slate-700">
-                      {entry.totalDays} / 2.5
+                      {entry.used} / {entry.limit}
                     </p>
                   </article>
                 ))}

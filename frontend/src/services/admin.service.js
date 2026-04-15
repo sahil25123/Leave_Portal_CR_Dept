@@ -45,3 +45,23 @@ export async function getAllLeavesRequest() {
   const { data } = await api.get("/leave/all");
   return data.leaves || [];
 }
+
+export async function getLeaveYearsRequest() {
+  const { data } = await api.get("/admin/year");
+  return data.years || [];
+}
+
+export async function getActiveLeaveYearRequest() {
+  const { data } = await api.get("/admin/year/active");
+  return data.activeYear;
+}
+
+export async function createLeaveYearRequest(payload) {
+  const { data } = await api.post("/admin/year", payload);
+  return data.year;
+}
+
+export async function activateLeaveYearRequest(yearId) {
+  const { data } = await api.put("/admin/year/" + yearId + "/activate");
+  return data.year;
+}

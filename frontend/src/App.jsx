@@ -9,6 +9,7 @@ import LeaveOverview from "./pages/LeaveOverview";
 import Login from "./pages/Login";
 import LeaveApply from "./pages/LeaveApply";
 import Approvals from "./pages/Approvals";
+import YearManagement from "./pages/YearManagement";
 import UserManagement from "./pages/UserManagement";
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
 
           <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/years" element={<YearManagement />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/holidays" element={<HolidayManagement />} />
             <Route path="/admin/leaves" element={<LeaveOverview />} />

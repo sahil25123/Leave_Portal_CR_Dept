@@ -49,9 +49,26 @@ model User {
   notifications    Notification[]
 }
 
+model LeaveYear {
+  id           Int           @id @default(autoincrement())
+  name         String        @unique
+  startDate    DateTime
+  endDate      DateTime
+  isActive     Boolean       @default(false)
+  monthlyLimit Float         @default(2.5)
+  yearlyLimit  Float         @default(30)
+  createdAt    DateTime      @default(now())
+
+  leaves       Leave[]
+  leaveBalances LeaveBalance[]
+
+  @@index([isActive])
+}
+
 model Leave {
   id              Int         @id @default(autoincrement())
   userId          Int
+  yearId          Int
   deanId          Int?
   fromDate        DateTime
   toDate          DateTime
@@ -66,10 +83,12 @@ model Leave {
   createdAt       DateTime    @default(now())
 
   user          User           @relation("LeaveApplicant", fields: [userId], references: [id])
+  leaveYear     LeaveYear      @relation(fields: [yearId], references: [id])
   dean          User?          @relation("LeaveDean", fields: [deanId], references: [id])
   notifications Notification[]
 
   @@index([userId])
+  @@index([yearId])
   @@index([status])
   @@index([fromDate, toDate])
 }
@@ -77,15 +96,18 @@ model Leave {
 model LeaveBalance {
   id        Int      @id @default(autoincrement())
   userId    Int
+  yearId    Int
   year      Int
   total     Float    @default(30)
   used      Float    @default(0)
   remaining Float    @default(30)
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  leaveYear LeaveYear @relation(fields: [yearId], references: [id])
 
-  @@unique([userId, year])
+  @@unique([userId, yearId])
+  @@index([yearId])
   @@index([year])
 }
 
