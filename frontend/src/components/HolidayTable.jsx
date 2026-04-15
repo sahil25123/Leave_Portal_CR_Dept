@@ -1,6 +1,6 @@
 import { formatDate } from "../utils/formatters";
 
-function HolidayTable({ holidays, deletingId, onDelete }) {
+function HolidayTable({ holidays, deletingId, onDelete, onEdit, editingId }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="min-w-full text-left text-sm">
@@ -21,6 +21,14 @@ function HolidayTable({ holidays, deletingId, onDelete }) {
                 {formatDate(holiday.date)}
               </td>
               <td className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => onEdit(holiday)}
+                  className="mr-2 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  {editingId === holiday.id ? "Editing" : "Edit"}
+                </button>
+
                 <button
                   type="button"
                   disabled={deletingId === holiday.id}

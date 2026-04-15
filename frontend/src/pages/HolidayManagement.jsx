@@ -9,6 +9,7 @@ import {
   deleteHolidayRequest,
   getHolidaysRequest,
   syncHolidaysRequest,
+  updateHolidayRequest,
 } from "../services/admin.service";
 import { getApiErrorMessage } from "../services/api";
 
@@ -20,6 +21,7 @@ const INITIAL_FORM = {
 function HolidayManagement() {
   const [holidays, setHolidays] = useState([]);
   const [form, setForm] = useState(INITIAL_FORM);
+  const [editingHolidayId, setEditingHolidayId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -50,19 +52,54 @@ function HolidayManagement() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  async function handleCreate(event) {
+  function beginEdit(holiday) {
+    setEditingHolidayId(holiday.id);
+    setError("");
+    setSuccess("");
+    setForm({
+      name: holiday.name || "",
+      date: String(holiday.date || "").slice(0, 10),
+    });
+  }
+
+  function cancelEdit() {
+    setEditingHolidayId(null);
+    setForm(INITIAL_FORM);
+    setError("");
+    setSuccess("");
+  }
+
+  async function handleSubmit(event) {
     event.preventDefault();
     setError("");
     setSuccess("");
     setIsSubmitting(true);
 
     try {
-      const holiday = await createHolidayRequest(form);
-      setHolidays((current) => [...current, holiday]);
+      if (editingHolidayId) {
+        const updatedHoliday = await updateHolidayRequest(editingHolidayId, form);
+
+        setHolidays((current) =>
+          current.map((holiday) =>
+            holiday.id === editingHolidayId ? updatedHoliday : holiday,
+          ),
+        );
+        setSuccess("Holiday updated successfully.");
+      } else {
+        const holiday = await createHolidayRequest(form);
+        setHolidays((current) => [...current, holiday]);
+        setSuccess("Holiday added successfully.");
+      }
+
+      setEditingHolidayId(null);
       setForm(INITIAL_FORM);
-      setSuccess("Holiday added successfully.");
-    } catch (createError) {
-      setError(getApiErrorMessage(createError, "Failed to add holiday"));
+    } catch (submitError) {
+      setError(
+        getApiErrorMessage(
+          submitError,
+          editingHolidayId ? "Failed to update holiday" : "Failed to add holiday",
+        ),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -78,6 +115,12 @@ function HolidayManagement() {
       setHolidays((current) =>
         current.filter((holiday) => holiday.id !== holidayId),
       );
+
+      if (editingHolidayId === holidayId) {
+        setEditingHolidayId(null);
+        setForm(INITIAL_FORM);
+      }
+
       setSuccess("Holiday deleted successfully.");
     } catch (deleteError) {
       setError(getApiErrorMessage(deleteError, "Failed to delete holiday"));
@@ -156,8 +199,10 @@ function HolidayManagement() {
         <HolidayForm
           values={form}
           onChange={updateField}
-          onSubmit={handleCreate}
+          onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
+          isEditing={Boolean(editingHolidayId)}
+          onCancel={cancelEdit}
         />
       </section>
 
@@ -169,6 +214,8 @@ function HolidayManagement() {
             holidays={holidays}
             deletingId={deletingId}
             onDelete={handleDelete}
+            onEdit={beginEdit}
+            editingId={editingHolidayId}
           />
         )}
       </section>

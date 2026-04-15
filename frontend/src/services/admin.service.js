@@ -25,6 +25,11 @@ export async function createHolidayRequest(payload) {
   return data.holiday;
 }
 
+export async function updateHolidayRequest(holidayId, payload) {
+  const { data } = await api.put("/holidays/" + holidayId, payload);
+  return data.holiday;
+}
+
 export async function syncHolidaysRequest(year) {
   const payload = typeof year === "number" ? { year } : {};
   const { data } = await api.post("/holidays/sync", payload);

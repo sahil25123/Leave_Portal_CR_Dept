@@ -3,6 +3,7 @@ import {
   deleteHolidayById,
   getAllHolidays,
   syncHolidays,
+  updateHolidayById,
 } from "../services/holiday.service.js";
 
 function parseId(rawId, label) {
@@ -68,6 +69,20 @@ export async function createHoliday(req, res) {
     });
   } catch (error) {
     return handleError(res, error, "Failed to create holiday");
+  }
+}
+
+export async function updateHoliday(req, res) {
+  try {
+    const holidayId = parseId(req.params.id, "holiday");
+    const holiday = await updateHolidayById(holidayId, req.body);
+
+    return res.status(200).json({
+      message: "Holiday updated",
+      holiday,
+    });
+  } catch (error) {
+    return handleError(res, error, "Failed to update holiday");
   }
 }
 

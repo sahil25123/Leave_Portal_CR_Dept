@@ -4,6 +4,7 @@ import {
   deleteHoliday,
   getHolidays,
   syncHolidayCalendar,
+  updateHoliday,
 } from "../controllers/holiday.controller.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
@@ -18,6 +19,12 @@ router.post(
   syncHolidayCalendar,
 );
 router.post("/holidays", authenticate, authorizeRoles("admin"), createHoliday);
+router.put(
+  "/holidays/:id",
+  authenticate,
+  authorizeRoles("admin"),
+  updateHoliday,
+);
 router.delete(
   "/holidays/:id",
   authenticate,

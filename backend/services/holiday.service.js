@@ -164,6 +164,49 @@ export async function createHoliday(payload) {
   });
 }
 
+export async function updateHolidayById(holidayId, payload) {
+  const name = String(payload?.name || "").trim();
+  const date = normalizeDate(payload?.date);
+
+  if (!name || !date) {
+    throw new Error("name and date are required");
+  }
+
+  const existingHoliday = await prisma.holiday.findUnique({
+    where: { id: holidayId },
+    select: { id: true },
+  });
+
+  if (!existingHoliday) {
+    throw new Error("Holiday not found");
+  }
+
+  const duplicateByDate = await prisma.holiday.findUnique({
+    where: { date },
+    select: { id: true },
+  });
+
+  if (duplicateByDate && duplicateByDate.id !== holidayId) {
+    throw new Error("Holiday already exists for this date");
+  }
+
+  return prisma.holiday.update({
+    where: {
+      id: holidayId,
+    },
+    data: {
+      name,
+      date,
+    },
+    select: {
+      id: true,
+      name: true,
+      date: true,
+      createdAt: true,
+    },
+  });
+}
+
 export async function deleteHolidayById(holidayId) {
   const existingHoliday = await prisma.holiday.findUnique({
     where: { id: holidayId },
