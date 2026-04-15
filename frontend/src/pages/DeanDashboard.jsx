@@ -1,143 +1,203 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import AppShell from "../components/AppShell";
 import ErrorAlert from "../components/ErrorAlert";
 import LoadingState from "../components/LoadingState";
 import { getApiErrorMessage } from "../services/api";
-import {
-  approveByDeanRequest,
-  getDeanPendingLeavesRequest,
-  rejectByDeanRequest,
-} from "../services/leave.service";
-import { formatDate } from "../utils/formatters";
+import { getDeanDashboardOverviewRequest } from "../services/leave.service";
+import { formatDate, formatLeaveStatus } from "../utils/formatters";
+
+function StatCard({ label, value, tone = "slate" }) {
+  const tones = {
+    slate: "border-slate-200 bg-white text-slate-900",
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
+    green: "border-green-200 bg-green-50 text-green-900",
+    red: "border-red-200 bg-red-50 text-red-900",
+  };
+
+  return (
+    <article
+      className={"rounded-lg border p-4 " + (tones[tone] || tones.slate)}
+    >
+      <p className="text-sm font-medium opacity-80">{label}</p>
+      <p className="mt-2 text-2xl font-bold">{value}</p>
+    </article>
+  );
+}
+
+function StatusBadge({ status }) {
+  const styles = {
+    pending_dean: "bg-amber-100 text-amber-700",
+    approved: "bg-green-100 text-green-700",
+    rejected: "bg-red-100 text-red-700",
+  };
+
+  return (
+    <span
+      className={
+        "rounded-full px-2.5 py-1 text-xs font-semibold " +
+        (styles[status] || "bg-slate-100 text-slate-700")
+      }
+    >
+      {formatLeaveStatus(status)}
+    </span>
+  );
+}
 
 function DeanDashboard() {
-  const [pendingLeaves, setPendingLeaves] = useState([]);
+  const [overview, setOverview] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [actionMap, setActionMap] = useState({});
 
-  async function loadPendingLeaves() {
+  async function loadOverview() {
     setIsLoading(true);
     setError("");
 
     try {
-      const leaves = await getDeanPendingLeavesRequest();
-      setPendingLeaves(leaves);
+      const data = await getDeanDashboardOverviewRequest();
+      setOverview(data);
     } catch (loadError) {
-      setError(
-        getApiErrorMessage(loadError, "Failed to load pending requests"),
-      );
+      setError(getApiErrorMessage(loadError, "Failed to load dashboard"));
     } finally {
       setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    loadPendingLeaves();
+    loadOverview();
   }, []);
 
-  async function handleApprove(leaveId) {
-    setActionMap((current) => ({ ...current, [leaveId]: true }));
-    setError("");
+  const metrics = overview?.metrics || {
+    totalRequests: 0,
+    pendingRequests: 0,
+    approvedRequests: 0,
+    rejectedRequests: 0,
+  };
 
-    try {
-      await approveByDeanRequest(leaveId);
-      setPendingLeaves((current) =>
-        current.filter((item) => item.id !== leaveId),
-      );
-    } catch (actionError) {
-      setError(getApiErrorMessage(actionError, "Failed to approve leave"));
-    } finally {
-      setActionMap((current) => ({ ...current, [leaveId]: false }));
-    }
-  }
-
-  async function handleReject(leaveId) {
-    const reason = window.prompt("Enter rejection reason");
-
-    if (!reason || !reason.trim()) {
-      return;
-    }
-
-    setActionMap((current) => ({ ...current, [leaveId]: true }));
-    setError("");
-
-    try {
-      await rejectByDeanRequest(leaveId, reason.trim());
-      setPendingLeaves((current) =>
-        current.filter((item) => item.id !== leaveId),
-      );
-    } catch (actionError) {
-      setError(getApiErrorMessage(actionError, "Failed to reject leave"));
-    } finally {
-      setActionMap((current) => ({ ...current, [leaveId]: false }));
-    }
-  }
+  const recentActivity = overview?.recentActivity || [];
+  const topUsers = overview?.topUsers || [];
 
   return (
     <AppShell
-      title="Dean Approvals"
-      subtitle="Review and decide pending leave applications from staff."
+      title="Dean Dashboard"
+      subtitle={
+        "Overview of requests for " + (overview?.month || "this month") + "."
+      }
     >
       <ErrorAlert message={error} />
 
-      {isLoading ? <LoadingState label="Loading pending requests..." /> : null}
-
-      {!isLoading && pendingLeaves.length === 0 ? (
-        <section className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500">
-          No pending leave requests.
-        </section>
+      {isLoading ? (
+        <LoadingState label="Loading dashboard overview..." />
       ) : null}
 
-      {!isLoading && pendingLeaves.length > 0 ? (
-        <section className="space-y-3">
-          {pendingLeaves.map((leave) => {
-            const isActionRunning = Boolean(actionMap[leave.id]);
+      {!isLoading ? (
+        <section className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Total Requests" value={metrics.totalRequests} />
+            <StatCard
+              label="Pending Requests"
+              value={metrics.pendingRequests}
+              tone="amber"
+            />
+            <StatCard
+              label="Approved Requests"
+              value={metrics.approvedRequests}
+              tone="green"
+            />
+            <StatCard
+              label="Rejected Requests"
+              value={metrics.rejectedRequests}
+              tone="red"
+            />
+          </div>
 
-            return (
-              <article
-                key={leave.id}
-                className="rounded-lg border border-slate-200 bg-white p-4"
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Recent Activity
+              </h3>
+              <Link
+                to="/approvals"
+                className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
               >
-                <div className="flex flex-col justify-between gap-4 md:flex-row">
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900">
-                      {leave.user.name}
-                    </h3>
-                    <p className="text-sm text-slate-500">
-                      {leave.user.designation}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-700">
-                      {formatDate(leave.fromDate)} to {formatDate(leave.toDate)}{" "}
-                      ({leave.totalDays} day(s))
-                    </p>
-                    <p className="mt-1 text-sm text-slate-700">
-                      {leave.reason}
-                    </p>
-                  </div>
+                Open Approvals
+              </Link>
+            </div>
 
-                  <div className="flex items-start gap-2">
-                    <button
-                      type="button"
-                      disabled={isActionRunning}
-                      onClick={() => handleApprove(leave.id)}
-                      className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
-                    >
-                      {isActionRunning ? "Processing..." : "Approve"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isActionRunning}
-                      onClick={() => handleReject(leave.id)}
-                      className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-                    >
-                      Reject
-                    </button>
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-slate-500">No requests this month.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-600">
+                      <th className="py-2 pr-3">User</th>
+                      <th className="py-2 pr-3">Date Range</th>
+                      <th className="py-2 pr-3">Days</th>
+                      <th className="py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentActivity.map((leave) => (
+                      <tr key={leave.id} className="border-b border-slate-100">
+                        <td className="py-3 pr-3 font-medium text-slate-900">
+                          {leave.userName}
+                        </td>
+                        <td className="py-3 pr-3 text-slate-700">
+                          {formatDate(leave.fromDate)} to{" "}
+                          {formatDate(leave.toDate)}
+                        </td>
+                        <td className="py-3 pr-3 text-slate-700">
+                          {leave.totalDays}
+                        </td>
+                        <td className="py-3">
+                          <StatusBadge status={leave.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <h3 className="mb-4 text-lg font-semibold text-slate-900">
+              Top Users
+            </h3>
+
+            {topUsers.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No approved usage in this month.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {topUsers.map((user) => (
+                  <div
+                    key={user.userId}
+                    className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {user.name}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {user.designation}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {user.totalDays} day(s)
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {user.requestCount} approved request(s)
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </article>
-            );
-          })}
+                ))}
+              </div>
+            )}
+          </div>
         </section>
       ) : null}
     </AppShell>

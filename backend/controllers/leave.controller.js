@@ -1,17 +1,20 @@
 import {
   applyLeave as applyLeaveService,
   approveByDean as approveByDeanService,
+  getDeanDashboardOverview as getDeanDashboardOverviewService,
+  getLeaveUserDetailsForDean as getLeaveUserDetailsForDeanService,
   getMyLeaveBalance as getMyLeaveBalanceService,
   getMyLeaveHistory as getMyLeaveHistoryService,
+  getPendingLeaves as getPendingLeavesService,
   getPendingLeavesForDean as getPendingLeavesForDeanService,
   rejectByDean as rejectByDeanService,
 } from "../services/leave.service.js";
 
-function parseLeaveId(idParam) {
+function parseId(idParam, label) {
   const id = Number(idParam);
 
   if (!Number.isInteger(id) || id <= 0) {
-    throw new Error("Invalid leave id");
+    throw new Error("Invalid " + label + " id");
   }
 
   return id;
@@ -32,7 +35,11 @@ function getStatusCode(message) {
     return 403;
   }
 
-  if (message === "Leave not found") {
+  if (
+    message === "Leave not found" ||
+    message.endsWith("not found") ||
+    message.includes("not found")
+  ) {
     return 404;
   }
 
@@ -71,7 +78,7 @@ export async function applyLeave(req, res) {
 
 export async function approveByDean(req, res) {
   try {
-    const leaveId = parseLeaveId(req.params.id);
+    const leaveId = parseId(req.params.id, "leave");
     const leave = await approveByDeanService(leaveId, req.user);
 
     return res.status(200).json({
@@ -85,7 +92,7 @@ export async function approveByDean(req, res) {
 
 export async function rejectByDean(req, res) {
   try {
-    const leaveId = parseLeaveId(req.params.id);
+    const leaveId = parseId(req.params.id, "leave");
     const leave = await rejectByDeanService(
       leaveId,
       req.body?.reason,
@@ -146,5 +153,52 @@ export async function getPendingLeavesForDean(req, res) {
     return res.status(200).json({ leaves });
   } catch (error) {
     return handleError(res, error, "Failed to fetch pending leaves");
+  }
+}
+
+export async function getPendingLeaves(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const leaves = await getPendingLeavesService(req.user);
+    return res.status(200).json({ leaves });
+  } catch (error) {
+    return handleError(res, error, "Failed to fetch pending leaves");
+  }
+}
+
+export async function getDeanDashboardOverview(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const overview = await getDeanDashboardOverviewService(req.user);
+    return res.status(200).json(overview);
+  } catch (error) {
+    return handleError(res, error, "Failed to fetch dean dashboard overview");
+  }
+}
+
+export async function getLeaveUserDetailsForDean(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const userId = parseId(req.params.id, "user");
+    const details = await getLeaveUserDetailsForDeanService(userId, req.user);
+
+    return res.status(200).json(details);
+  } catch (error) {
+    return handleError(res, error, "Failed to fetch leave user details");
   }
 }

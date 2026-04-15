@@ -20,9 +20,19 @@ export async function getMyLeaveBalanceRequest() {
   return data.balance;
 }
 
+export async function getDeanDashboardOverviewRequest() {
+  const { data } = await api.get("/leave/dean/overview");
+  return data;
+}
+
 export async function getDeanPendingLeavesRequest() {
-  const { data } = await api.get("/leave/pending/dean");
+  const { data } = await api.get("/leave/pending");
   return data.leaves || [];
+}
+
+export async function getLeaveUserDetailsForDeanRequest(userId) {
+  const { data } = await api.get("/leave/user/" + userId);
+  return data;
 }
 
 export async function approveByDeanRequest(leaveId) {

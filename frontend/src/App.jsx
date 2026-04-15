@@ -8,7 +8,7 @@ import HolidayManagement from "./pages/HolidayManagement";
 import LeaveOverview from "./pages/LeaveOverview";
 import Login from "./pages/Login";
 import LeaveApply from "./pages/LeaveApply";
-import DeanDashboard from "./pages/DeanDashboard";
+import Approvals from "./pages/Approvals";
 import UserManagement from "./pages/UserManagement";
 
 function App() {
@@ -30,7 +30,7 @@ function App() {
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["dean"]} />}>
-            <Route path="/approvals" element={<DeanDashboard />} />
+            <Route path="/approvals" element={<Approvals />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
