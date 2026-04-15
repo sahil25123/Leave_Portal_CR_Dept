@@ -28,6 +28,18 @@ function parseAndValidateDates(fromDate, toDate) {
   return { parsedFromDate, parsedToDate };
 }
 
+function parseBoolean(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
 function ensureActorRole(actor, expectedRole) {
   if (!actor || actor.role !== expectedRole) {
     throw new Error("Forbidden");
@@ -139,7 +151,7 @@ export async function applyLeave(userId, data) {
     fromDate,
     toDate,
   );
-  const isHalfDayLeave = isHalfDay === true;
+  const isHalfDayLeave = parseBoolean(isHalfDay);
   const normalizedHalfDayType = isHalfDayLeave
     ? String(halfDayType || "")
         .trim()
@@ -490,6 +502,50 @@ export async function getMyLeaveBalance(userId) {
   });
 }
 
+export async function getMonthlyLeaveSummary(userId) {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const nextYearStart = new Date(Date.UTC(year + 1, 0, 1));
+
+  const leaves = await prisma.leave.findMany({
+    where: {
+      userId,
+      status: {
+        not: "rejected",
+      },
+      fromDate: {
+        gte: yearStart,
+        lt: nextYearStart,
+      },
+    },
+    select: {
+      fromDate: true,
+      totalDays: true,
+    },
+  });
+
+  const monthlyTotals = new Map();
+
+  for (const leave of leaves) {
+    const monthIndex = leave.fromDate.getUTCMonth();
+    const currentTotal = monthlyTotals.get(monthIndex) || 0;
+    monthlyTotals.set(monthIndex, currentTotal + Number(leave.totalDays || 0));
+  }
+
+  const monthFormatter = new Intl.DateTimeFormat("en-IN", {
+    month: "long",
+    timeZone: "UTC",
+  });
+
+  return [...monthlyTotals.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([monthIndex, totalDays]) => ({
+      month: monthFormatter.format(new Date(Date.UTC(year, monthIndex, 1))),
+      totalDays: Number(totalDays.toFixed(2)),
+    }));
+}
+
 export async function getPendingLeavesForDean(user) {
   ensureActorRole(user, "dean");
 
@@ -685,136 +741,118 @@ export async function getDeanDashboardOverview(user) {
 export async function getLeaveUserDetailsForDean(userId, actor) {
   ensureActorRole(actor, "dean");
 
-  const targetUser = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      designation: true,
-      role: true,
-      createdAt: true,
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const { monthStart, nextMonthStart } = getUtcMonthRange(now);
+  const monthlyWindowFilter = {
+    userId,
+    fromDate: {
+      gte: monthStart,
+      lt: nextMonthStart,
     },
-  });
+  };
 
-  if (!targetUser || targetUser.role !== "staff") {
+  const [
+    targetUser,
+    leaveBalance,
+    monthlyTotalAggregate,
+    monthlyApprovedAggregate,
+    monthlyPendingAggregate,
+    monthlyRequestCount,
+    lastLeaves,
+  ] = await prisma.$transaction([
+    prisma.user.findFirst({
+      where: {
+        id: userId,
+        role: "staff",
+      },
+      select: {
+        id: true,
+        name: true,
+        designation: true,
+      },
+    }),
+    prisma.leaveBalance.findUnique({
+      where: {
+        userId_year: {
+          userId,
+          year,
+        },
+      },
+      select: {
+        total: true,
+        used: true,
+        remaining: true,
+      },
+    }),
+    prisma.leave.aggregate({
+      where: {
+        ...monthlyWindowFilter,
+        status: {
+          not: "rejected",
+        },
+      },
+      _sum: {
+        totalDays: true,
+      },
+    }),
+    prisma.leave.aggregate({
+      where: {
+        ...monthlyWindowFilter,
+        status: "approved",
+      },
+      _sum: {
+        totalDays: true,
+      },
+    }),
+    prisma.leave.aggregate({
+      where: {
+        ...monthlyWindowFilter,
+        status: "pending_dean",
+      },
+      _sum: {
+        totalDays: true,
+      },
+    }),
+    prisma.leave.count({
+      where: {
+        ...monthlyWindowFilter,
+        status: {
+          not: "rejected",
+        },
+      },
+    }),
+    prisma.leave.findMany({
+      where: { userId },
+      orderBy: {
+        fromDate: "desc",
+      },
+      take: 5,
+      select: {
+        fromDate: true,
+        toDate: true,
+        totalDays: true,
+        status: true,
+      },
+    }),
+  ]);
+
+  if (!targetUser) {
     throw new Error("User not found");
   }
 
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const { monthStart, monthEnd } = getUtcMonthRange(now);
-
-  const [leaveBalance, monthlyLeaves, previousLeaves, holidays] =
-    await Promise.all([
-      prisma.leaveBalance.findUnique({
-        where: {
-          userId_year: {
-            userId,
-            year,
-          },
-        },
-        select: {
-          year: true,
-          total: true,
-          used: true,
-          remaining: true,
-        },
-      }),
-      prisma.leave.findMany({
-        where: {
-          userId,
-          status: {
-            not: "rejected",
-          },
-          fromDate: {
-            lte: monthEnd,
-          },
-          toDate: {
-            gte: monthStart,
-          },
-        },
-        select: {
-          fromDate: true,
-          toDate: true,
-          isHalfDay: true,
-          status: true,
-        },
-      }),
-      prisma.leave.findMany({
-        where: { userId },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 5,
-        select: {
-          id: true,
-          fromDate: true,
-          toDate: true,
-          totalDays: true,
-          status: true,
-          reason: true,
-          isHalfDay: true,
-          halfDayType: true,
-          createdAt: true,
-        },
-      }),
-      prisma.holiday.findMany({
-        select: {
-          date: true,
-        },
-      }),
-    ]);
-
-  let monthlyTotal = 0;
-  let monthlyApproved = 0;
-  let monthlyPending = 0;
-
-  for (const leave of monthlyLeaves) {
-    const leaveFromDate = toDateOnly(leave.fromDate);
-    const leaveToDate = toDateOnly(leave.toDate);
-
-    if (!leaveFromDate || !leaveToDate) {
-      continue;
-    }
-
-    const intersection = getDateIntersection(
-      leaveFromDate,
-      leaveToDate,
-      monthStart,
-      monthEnd,
-    );
-
-    if (!intersection) {
-      continue;
-    }
-
-    const days = calculateWorkingDays(
-      intersection.start,
-      intersection.end,
-      holidays,
-      leave.isHalfDay === true,
-    );
-
-    if (days <= 0) {
-      continue;
-    }
-
-    monthlyTotal += days;
-
-    if (leave.status === "approved") {
-      monthlyApproved += days;
-    }
-
-    if (leave.status === "pending_dean") {
-      monthlyPending += days;
-    }
-  }
+  const monthlyTotal = Number(monthlyTotalAggregate?._sum?.totalDays || 0);
+  const monthlyApproved = Number(
+    monthlyApprovedAggregate?._sum?.totalDays || 0,
+  );
+  const monthlyPending = Number(monthlyPendingAggregate?._sum?.totalDays || 0);
 
   return {
-    user: targetUser,
+    user: {
+      name: targetUser.name,
+      designation: targetUser.designation,
+    },
     leaveBalance: leaveBalance || {
-      year,
       total: 30,
       used: 0,
       remaining: 30,
@@ -824,9 +862,10 @@ export async function getLeaveUserDetailsForDean(userId, actor) {
       totalDays: Number(monthlyTotal.toFixed(2)),
       approvedDays: Number(monthlyApproved.toFixed(2)),
       pendingDays: Number(monthlyPending.toFixed(2)),
-      requestCount: monthlyLeaves.length,
+      requestCount: monthlyRequestCount,
     },
-    previousLeaves,
+    lastLeaves,
+    previousLeaves: lastLeaves,
   };
 }
 

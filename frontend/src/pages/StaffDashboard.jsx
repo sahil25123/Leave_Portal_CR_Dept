@@ -4,6 +4,7 @@ import AppShell from "../components/AppShell";
 import ErrorAlert from "../components/ErrorAlert";
 import LoadingState from "../components/LoadingState";
 import {
+  getMonthlyLeaveSummaryRequest,
   getMyLeaveBalanceRequest,
   getMyLeaveHistoryRequest,
 } from "../services/leave.service";
@@ -32,6 +33,7 @@ function StatusBadge({ status }) {
 function StaffDashboard() {
   const [balance, setBalance] = useState(null);
   const [history, setHistory] = useState([]);
+  const [monthlySummary, setMonthlySummary] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -41,13 +43,16 @@ function StaffDashboard() {
       setError("");
 
       try {
-        const [balanceData, historyData] = await Promise.all([
-          getMyLeaveBalanceRequest(),
-          getMyLeaveHistoryRequest(),
-        ]);
+        const [balanceData, historyData, monthlySummaryData] =
+          await Promise.all([
+            getMyLeaveBalanceRequest(),
+            getMyLeaveHistoryRequest(),
+            getMonthlyLeaveSummaryRequest(),
+          ]);
 
         setBalance(balanceData);
         setHistory(historyData);
+        setMonthlySummary(monthlySummaryData);
       } catch (loadError) {
         setError(getApiErrorMessage(loadError, "Failed to load dashboard"));
       } finally {
@@ -68,22 +73,56 @@ function StaffDashboard() {
       {isLoading ? <LoadingState label="Loading your dashboard..." /> : null}
 
       {!isLoading && balance ? (
-        <section className="grid gap-3 md:grid-cols-3">
-          <article className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Total</p>
-            <p className="text-2xl font-bold text-slate-900">{balance.total}</p>
-          </article>
-          <article className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Used</p>
-            <p className="text-2xl font-bold text-slate-900">{balance.used}</p>
-          </article>
-          <article className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">Remaining</p>
-            <p className="text-2xl font-bold text-slate-900">
-              {balance.remaining}
-            </p>
-          </article>
-        </section>
+        <div className="space-y-6">
+          <section className="grid gap-3 md:grid-cols-3">
+            <article className="rounded-lg border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-500">Total</p>
+              <p className="text-2xl font-bold text-slate-900">
+                {balance.total}
+              </p>
+            </article>
+            <article className="rounded-lg border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-500">Used</p>
+              <p className="text-2xl font-bold text-slate-900">
+                {balance.used}
+              </p>
+            </article>
+            <article className="rounded-lg border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-500">Remaining</p>
+              <p className="text-2xl font-bold text-slate-900">
+                {balance.remaining}
+              </p>
+            </article>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <h3 className="mb-3 text-lg font-semibold text-slate-900">
+              Monthly Leave Usage
+            </h3>
+
+            {monthlySummary.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No monthly leave usage yet.
+              </p>
+            ) : (
+              <div className="grid gap-2 md:grid-cols-2">
+                {monthlySummary.map((entry) => (
+                  <article
+                    key={entry.month}
+                    className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                  >
+                    <p className="text-sm font-semibold text-slate-900">
+                      {entry.month}
+                    </p>
+                    <p className="text-sm text-slate-700">
+                      {entry.totalDays} / 2.5
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       ) : null}
 
       {!isLoading ? (

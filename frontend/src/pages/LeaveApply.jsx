@@ -20,13 +20,25 @@ import {
   toDateOnly,
 } from "../utils/leaveValidation";
 
+const ALLOWED_FILE_EXTENSIONS = new Set(["pdf", "doc", "docx"]);
+
+function getFileExtension(fileName) {
+  const parts = String(fileName || "").split(".");
+
+  if (parts.length < 2) {
+    return "";
+  }
+
+  return parts[parts.length - 1].toLowerCase();
+}
+
 const INITIAL_FORM = {
   fromDate: "",
   toDate: "",
   reason: "",
   isHalfDay: false,
   halfDayType: "",
-  attachment: "",
+  attachment: null,
 };
 
 function LeaveApply() {
@@ -179,6 +191,8 @@ function LeaveApply() {
     validation.warnings.length > 0 ||
     Boolean(contextError);
 
+  const selectedFileName = form.attachment?.name || "";
+
   function updateField(field, value) {
     setFieldError("");
     setError("");
@@ -232,6 +246,25 @@ function LeaveApply() {
     updateField(field, value);
   }
 
+  function handleAttachmentChange(event) {
+    const file = event.target.files?.[0] || null;
+
+    if (!file) {
+      updateField("attachment", null);
+      return;
+    }
+
+    const extension = getFileExtension(file.name);
+
+    if (!ALLOWED_FILE_EXTENSIONS.has(extension)) {
+      setFieldError("Only PDF, DOC, and DOCX files are allowed");
+      event.target.value = "";
+      return;
+    }
+
+    updateField("attachment", file);
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setFieldError("");
@@ -251,14 +284,21 @@ function LeaveApply() {
     setIsSubmitting(true);
 
     try {
-      await applyLeaveRequest({
-        fromDate: form.fromDate,
-        toDate: form.toDate,
-        reason: form.reason.trim(),
-        isHalfDay: form.isHalfDay,
-        halfDayType: form.isHalfDay ? form.halfDayType : undefined,
-        attachment: form.attachment || undefined,
-      });
+      const payload = new FormData();
+      payload.append("fromDate", form.fromDate);
+      payload.append("toDate", form.toDate);
+      payload.append("reason", form.reason.trim());
+      payload.append("isHalfDay", String(form.isHalfDay));
+
+      if (form.isHalfDay && form.halfDayType) {
+        payload.append("halfDayType", form.halfDayType);
+      }
+
+      if (form.attachment) {
+        payload.append("attachment", form.attachment);
+      }
+
+      await applyLeaveRequest(payload);
 
       setSuccess("Leave request submitted successfully.");
       setForm(INITIAL_FORM);
@@ -421,18 +461,24 @@ function LeaveApply() {
                 className="mb-1 block text-sm font-medium text-slate-700"
                 htmlFor="attachment"
               >
-                Attachment URL (optional)
+                Supporting Document (optional)
               </label>
               <input
                 id="attachment"
-                type="url"
-                value={form.attachment}
-                onChange={(event) =>
-                  updateField("attachment", event.target.value)
-                }
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={handleAttachmentChange}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                placeholder="https://example.com/document"
               />
+              {selectedFileName ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  Selected file: {selectedFileName}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-slate-500">
+                  Allowed formats: PDF, DOC, DOCX
+                </p>
+              )}
             </div>
           </div>
 

@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import ErrorAlert from "./ErrorAlert";
 import LoadingState from "./LoadingState";
 import { getApiErrorMessage } from "../services/api";
-import { getLeaveUserDetailsForDeanRequest } from "../services/leave.service";
+import {
+  getLeaveUserDetailsForDeanRequest,
+  resolveUploadUrl,
+} from "../services/leave.service";
 import { formatDate, formatLeaveStatus } from "../utils/formatters";
 
 function ApprovalModal({
@@ -63,9 +66,11 @@ function ApprovalModal({
   }
 
   const user = details?.user || leave.user;
+  const userEmail = details?.user?.email || leave.user?.email;
   const leaveBalance = details?.leaveBalance;
   const monthlyUsage = details?.monthlyUsage;
-  const previousLeaves = details?.previousLeaves || [];
+  const previousLeaves = details?.lastLeaves || details?.previousLeaves || [];
+  const attachmentUrl = resolveUploadUrl(leave.attachment);
 
   async function handleApproveClick() {
     setActionError("");
@@ -128,7 +133,9 @@ function ApprovalModal({
                   <p className="mt-2 text-sm font-semibold text-slate-900">
                     {user?.name}
                   </p>
-                  <p className="text-sm text-slate-700">{user?.email}</p>
+                  {userEmail ? (
+                    <p className="text-sm text-slate-700">{userEmail}</p>
+                  ) : null}
                   <p className="text-sm text-slate-700">{user?.designation}</p>
                 </div>
 
@@ -146,6 +153,20 @@ function ApprovalModal({
                     Status: {formatLeaveStatus(leave.status || "pending_dean")}
                   </p>
                   <p className="mt-2 text-sm text-slate-700">{leave.reason}</p>
+                  {attachmentUrl ? (
+                    <a
+                      href={attachmentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      View Document
+                    </a>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-500">
+                      No document attached
+                    </p>
+                  )}
                 </div>
               </section>
 
@@ -201,7 +222,6 @@ function ApprovalModal({
                           <th className="py-2 pr-3">Date Range</th>
                           <th className="py-2 pr-3">Days</th>
                           <th className="py-2 pr-3">Status</th>
-                          <th className="py-2">Reason</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -219,9 +239,6 @@ function ApprovalModal({
                             </td>
                             <td className="py-2 pr-3 text-slate-700">
                               {formatLeaveStatus(historyItem.status)}
-                            </td>
-                            <td className="py-2 text-slate-700">
-                              {historyItem.reason}
                             </td>
                           </tr>
                         ))}

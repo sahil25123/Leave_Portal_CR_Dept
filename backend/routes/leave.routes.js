@@ -4,6 +4,7 @@ import {
   approveByDean,
   getDeanDashboardOverview,
   getLeaveUserDetailsForDean,
+  getMonthlyLeaveSummary,
   getMyLeaveBalance,
   getMyLeaveHistory,
   getPendingLeaves,
@@ -11,13 +12,15 @@ import {
   rejectByDean,
 } from "../controllers/leave.controller.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
+import { uploadLeaveAttachment } from "../middlewares/upload.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
 
 const router = Router();
 
-router.post("/apply", authenticate, applyLeave);
+router.post("/apply", authenticate, uploadLeaveAttachment, applyLeave);
 router.get("/history/me", authenticate, getMyLeaveHistory);
 router.get("/balance/me", authenticate, getMyLeaveBalance);
+router.get("/monthly-summary", authenticate, getMonthlyLeaveSummary);
 router.get(
   "/dean/overview",
   authenticate,

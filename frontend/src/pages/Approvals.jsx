@@ -8,6 +8,7 @@ import {
   approveByDeanRequest,
   getDeanPendingLeavesRequest,
   rejectByDeanRequest,
+  resolveUploadUrl,
 } from "../services/leave.service";
 import { formatDate } from "../utils/formatters";
 
@@ -169,18 +170,31 @@ function Approvals() {
                       {leave.reason}
                     </td>
                     <td className="py-3">
-                      <button
-                        type="button"
-                        onClick={() => openModal(leave)}
-                        disabled={
-                          isProcessing || processingLeaveId === leave.id
-                        }
-                        className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                      >
-                        {processingLeaveId === leave.id
-                          ? "Processing..."
-                          : "View Details"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {leave.attachment ? (
+                          <a
+                            href={resolveUploadUrl(leave.attachment)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            View Document
+                          </a>
+                        ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => openModal(leave)}
+                          disabled={
+                            isProcessing || processingLeaveId === leave.id
+                          }
+                          className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        >
+                          {processingLeaveId === leave.id
+                            ? "Processing..."
+                            : "View Details"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

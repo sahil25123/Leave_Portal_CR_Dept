@@ -3,6 +3,7 @@ import {
   approveByDean as approveByDeanService,
   getDeanDashboardOverview as getDeanDashboardOverviewService,
   getLeaveUserDetailsForDean as getLeaveUserDetailsForDeanService,
+  getMonthlyLeaveSummary as getMonthlyLeaveSummaryService,
   getMyLeaveBalance as getMyLeaveBalanceService,
   getMyLeaveHistory as getMyLeaveHistoryService,
   getPendingLeaves as getPendingLeavesService,
@@ -65,7 +66,17 @@ export async function applyLeave(req, res) {
       });
     }
 
-    const leave = await applyLeaveService(req.user.id, req.body);
+    const attachmentPath = req.file
+      ? "uploads/" + req.file.filename
+      : undefined;
+    const leave = await applyLeaveService(req.user.id, {
+      fromDate: req.body?.fromDate,
+      toDate: req.body?.toDate,
+      reason: req.body?.reason,
+      isHalfDay: req.body?.isHalfDay,
+      halfDayType: req.body?.halfDayType,
+      attachment: attachmentPath,
+    });
 
     return res.status(201).json({
       message: "Leave applied successfully",
@@ -137,6 +148,21 @@ export async function getMyLeaveBalance(req, res) {
     return res.status(200).json({ balance });
   } catch (error) {
     return handleError(res, error, "Failed to fetch leave balance");
+  }
+}
+
+export async function getMonthlyLeaveSummary(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const summary = await getMonthlyLeaveSummaryService(req.user.id);
+    return res.status(200).json({ summary });
+  } catch (error) {
+    return handleError(res, error, "Failed to fetch monthly leave summary");
   }
 }
 
