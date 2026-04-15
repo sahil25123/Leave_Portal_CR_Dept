@@ -10,19 +10,6 @@ const NOTIFICATION_TYPE = {
   leaveRejected: NotificationType?.leave_rejected || "final_decision",
 };
 
-const APPLY_FLOW_BY_ROLE = {
-  staff: {
-    status: "pending_dean",
-    approverRole: "dean",
-    applyMessage: "A staff member applied for leave",
-  },
-  dean: {
-    status: "pending_hod",
-    approverRole: "hod",
-    applyMessage: "Dean applied for leave",
-  },
-};
-
 function parseAndValidateDates(fromDate, toDate) {
   const parsedFromDate = toDateOnly(fromDate);
   const parsedToDate = toDateOnly(toDate);
@@ -32,16 +19,6 @@ function parseAndValidateDates(fromDate, toDate) {
   }
 
   return { parsedFromDate, parsedToDate };
-}
-
-function getApplyFlow(role) {
-  const flow = APPLY_FLOW_BY_ROLE[role];
-
-  if (!flow) {
-    throw new Error("Only staff and dean can apply for leave");
-  }
-
-  return flow;
 }
 
 function ensureActorRole(actor, expectedRole) {
@@ -106,7 +83,9 @@ export async function applyLeave(userId, data) {
     throw new Error("User not found");
   }
 
-  const flow = getApplyFlow(user.role);
+  if (user.role !== "staff") {
+    throw new Error("Only staff can apply for leave");
+  }
 
   const { parsedFromDate, parsedToDate } = parseAndValidateDates(
     fromDate,
@@ -152,7 +131,7 @@ export async function applyLeave(userId, data) {
 
   const approver = await prisma.user.findFirst({
     where: {
-      role: flow.approverRole,
+      role: "dean",
     },
     select: {
       id: true,
@@ -173,9 +152,8 @@ export async function applyLeave(userId, data) {
         reason: String(reason).trim(),
         isHalfDay: isHalfDayLeave,
         attachment: attachment || null,
-        status: flow.status,
-        deanApproved: user.role === "dean",
-        hodApproved: false,
+        status: "pending_dean",
+        deanApproved: false,
       },
     });
 
@@ -183,7 +161,7 @@ export async function applyLeave(userId, data) {
       data: {
         userId: approver.id,
         title: "New Leave Request",
-        message: flow.applyMessage,
+        message: "A staff member applied for leave",
         type: NOTIFICATION_TYPE.leaveApplied,
         leaveId: createdLeave.id,
       },
@@ -207,51 +185,6 @@ export async function approveByDean(leaveId, user) {
     throw new Error("Dean can only approve staff leave requests");
   }
 
-  const hod = await prisma.user.findFirst({
-    where: { role: "hod" },
-    select: { id: true },
-  });
-
-  if (!hod) {
-    throw new Error("HOD user not found");
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const updatedLeave = await tx.leave.update({
-      where: { id: leave.id },
-      data: {
-        deanApproved: true,
-        deanId: user.id,
-        status: "pending_hod",
-      },
-    });
-
-    await tx.notification.create({
-      data: {
-        userId: hod.id,
-        title: "Leave Pending Approval",
-        message: "A leave request is waiting for your approval",
-        type: NOTIFICATION_TYPE.leaveApplied,
-        leaveId: leave.id,
-      },
-    });
-
-    return updatedLeave;
-  });
-}
-
-export async function approveByHod(leaveId, user) {
-  ensureActorRole(user, "hod");
-
-  const leave = await getLeaveWithApplicant(leaveId);
-
-  ensureNotSelfAction(leave, user, "approve");
-  ensureActionAllowedOnLeave(leave, "pending_hod", "HOD approval");
-
-  if (leave.user.role === "dean" && user.role !== "hod") {
-    throw new Error("Only HOD can approve this leave");
-  }
-
   const leaveYear = leave.fromDate.getUTCFullYear();
 
   return prisma.$transaction(async (tx) => {
@@ -264,7 +197,6 @@ export async function approveByHod(leaveId, user) {
       },
       select: {
         id: true,
-        used: true,
         remaining: true,
       },
     });
@@ -280,8 +212,8 @@ export async function approveByHod(leaveId, user) {
     const updatedLeave = await tx.leave.update({
       where: { id: leave.id },
       data: {
-        hodApproved: true,
-        hodId: user.id,
+        deanApproved: true,
+        deanId: user.id,
         status: "approved",
       },
     });
@@ -337,44 +269,6 @@ export async function rejectByDean(leaveId, reason, user) {
         status: "rejected",
         rejectionReason,
         deanId: user.id,
-      },
-    });
-
-    await tx.notification.create({
-      data: {
-        userId: leave.userId,
-        title: "Leave Rejected",
-        message: "Your leave was rejected: " + rejectionReason,
-        type: NOTIFICATION_TYPE.leaveRejected,
-        leaveId: leave.id,
-      },
-    });
-
-    return updatedLeave;
-  });
-}
-
-export async function rejectByHod(leaveId, reason, user) {
-  ensureActorRole(user, "hod");
-
-  const rejectionReason = String(reason || "").trim();
-
-  if (!rejectionReason) {
-    throw new Error("Rejection reason is required");
-  }
-
-  const leave = await getLeaveWithApplicant(leaveId);
-
-  ensureNotSelfAction(leave, user, "reject");
-  ensureActionAllowedOnLeave(leave, "pending_hod", "HOD review");
-
-  return prisma.$transaction(async (tx) => {
-    const updatedLeave = await tx.leave.update({
-      where: { id: leave.id },
-      data: {
-        status: "rejected",
-        rejectionReason,
-        hodId: user.id,
       },
     });
 

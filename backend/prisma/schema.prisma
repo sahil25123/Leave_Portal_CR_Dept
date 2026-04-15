@@ -14,13 +14,11 @@ datasource db {
 enum UserRole {
   staff
   dean
-  hod
   admin
 }
 
 enum LeaveStatus {
   pending_dean
-  pending_hod
   approved
   rejected
 }
@@ -42,7 +40,6 @@ model User {
 
   leaves           Leave[]        @relation("LeaveApplicant")
   deanReviewLeaves Leave[]        @relation("LeaveDean")
-  hodReviewLeaves  Leave[]        @relation("LeaveHod")
   leaveBalances    LeaveBalance[]
   notifications    Notification[]
 }
@@ -51,7 +48,6 @@ model Leave {
   id              Int         @id @default(autoincrement())
   userId          Int
   deanId          Int?
-  hodId           Int?
   fromDate        DateTime
   toDate          DateTime
   isHalfDay       Boolean     @default(false)
@@ -60,13 +56,11 @@ model Leave {
   attachment      String?
   status          LeaveStatus @default(pending_dean)
   deanApproved    Boolean     @default(false)
-  hodApproved     Boolean     @default(false)
   rejectionReason String?
   createdAt       DateTime    @default(now())
 
   user          User           @relation("LeaveApplicant", fields: [userId], references: [id])
   dean          User?          @relation("LeaveDean", fields: [deanId], references: [id])
-  hod           User?          @relation("LeaveHod", fields: [hodId], references: [id])
   notifications Notification[]
 
   @@index([userId])

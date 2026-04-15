@@ -1,9 +1,7 @@
 import {
   applyLeave as applyLeaveService,
   approveByDean as approveByDeanService,
-  approveByHod as approveByHodService,
   rejectByDean as rejectByDeanService,
-  rejectByHod as rejectByHodService,
 } from "../services/leave.service.js";
 
 function parseLeaveId(idParam) {
@@ -51,9 +49,9 @@ export async function applyLeave(req, res) {
       });
     }
 
-    if (req.user.role !== "staff" && req.user.role !== "dean") {
+    if (req.user.role !== "staff") {
       return res.status(403).json({
-        message: "Only staff and dean can apply for leave",
+        message: "Only staff can apply for leave",
       });
     }
 
@@ -82,41 +80,17 @@ export async function approveByDean(req, res) {
   }
 }
 
-export async function approveByHod(req, res) {
-  try {
-    const leaveId = parseLeaveId(req.params.id);
-    const leave = await approveByHodService(leaveId, req.user);
-
-    return res.status(200).json({
-      message: "Leave approved by HOD",
-      leave,
-    });
-  } catch (error) {
-    return handleError(res, error, "Failed to approve leave");
-  }
-}
-
 export async function rejectByDean(req, res) {
   try {
     const leaveId = parseLeaveId(req.params.id);
-    const leave = await rejectByDeanService(leaveId, req.body?.reason, req.user);
+    const leave = await rejectByDeanService(
+      leaveId,
+      req.body?.reason,
+      req.user,
+    );
 
     return res.status(200).json({
       message: "Leave rejected by dean",
-      leave,
-    });
-  } catch (error) {
-    return handleError(res, error, "Failed to reject leave");
-  }
-}
-
-export async function rejectByHod(req, res) {
-  try {
-    const leaveId = parseLeaveId(req.params.id);
-    const leave = await rejectByHodService(leaveId, req.body?.reason, req.user);
-
-    return res.status(200).json({
-      message: "Leave rejected by HOD",
       leave,
     });
   } catch (error) {
