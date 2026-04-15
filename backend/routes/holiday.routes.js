@@ -11,7 +11,7 @@ import { authorizeRoles } from "../middlewares/role.middleware.js";
 
 const router = Router();
 
-router.get("/holidays", authenticate, authorizeRoles("admin"), getHolidays);
+router.get("/holidays", authenticate, getHolidays);
 router.post(
   "/holidays/sync",
   authenticate,

@@ -1,6 +1,13 @@
 import prisma from "../config/prisma.js";
 import prismaPkg from "@prisma/client";
-import { calculateLeaveDays, toDateOnly } from "../utils/leaveCalculator.js";
+import {
+  calculateWorkingDays,
+  checkOverlap,
+  isNonWorkingDate,
+  toDateOnly,
+  validateMonthlyLimit,
+  validateYearlyLimit,
+} from "../utils/leaveValidator.js";
 
 const { NotificationType } = prismaPkg;
 
@@ -65,7 +72,14 @@ async function getLeaveWithApplicant(leaveId) {
 }
 
 export async function applyLeave(userId, data) {
-  const { fromDate, toDate, reason, isHalfDay = false, attachment } = data;
+  const {
+    fromDate,
+    toDate,
+    reason,
+    isHalfDay = false,
+    halfDayType,
+    attachment,
+  } = data;
 
   if (!fromDate || !toDate || !reason || !String(reason).trim()) {
     throw new Error("fromDate, toDate and reason are required");
@@ -92,16 +106,36 @@ export async function applyLeave(userId, data) {
     toDate,
   );
   const isHalfDayLeave = isHalfDay === true;
+  const normalizedHalfDayType = isHalfDayLeave
+    ? String(halfDayType || "")
+        .trim()
+        .toLowerCase()
+    : null;
 
   if (isHalfDayLeave && parsedFromDate.getTime() !== parsedToDate.getTime()) {
     throw new Error("Half day only allowed for single day");
+  }
+
+  if (
+    isHalfDayLeave &&
+    normalizedHalfDayType !== "first_half" &&
+    normalizedHalfDayType !== "second_half"
+  ) {
+    throw new Error("halfDayType must be first_half or second_half");
   }
 
   const holidays = await prisma.holiday.findMany({
     select: { date: true },
   });
 
-  const totalDays = calculateLeaveDays(
+  if (
+    isNonWorkingDate(parsedFromDate, holidays) ||
+    isNonWorkingDate(parsedToDate, holidays)
+  ) {
+    throw new Error("Cannot apply leave on holiday or Sunday");
+  }
+
+  const totalDays = calculateWorkingDays(
     parsedFromDate,
     parsedToDate,
     holidays,
@@ -109,25 +143,98 @@ export async function applyLeave(userId, data) {
   );
 
   if (totalDays === 0) {
-    throw new Error("No working days available in selected range");
+    throw new Error("Cannot apply leave on holiday or Sunday");
   }
 
+  const overlappingLeaves = await prisma.leave.findMany({
+    where: {
+      userId,
+      status: {
+        not: "rejected",
+      },
+      fromDate: {
+        lte: parsedToDate,
+      },
+      toDate: {
+        gte: parsedFromDate,
+      },
+    },
+    select: {
+      id: true,
+      fromDate: true,
+      toDate: true,
+      isHalfDay: true,
+      halfDayType: true,
+    },
+  });
+
+  checkOverlap({
+    existingLeaves: overlappingLeaves,
+    newFromDate: parsedFromDate,
+    newToDate: parsedToDate,
+    isHalfDay: isHalfDayLeave,
+    halfDayType: normalizedHalfDayType,
+  });
+
+  const monthWindowStart = new Date(
+    Date.UTC(parsedFromDate.getUTCFullYear(), parsedFromDate.getUTCMonth(), 1),
+  );
+  const monthWindowEnd = new Date(
+    Date.UTC(parsedToDate.getUTCFullYear(), parsedToDate.getUTCMonth() + 1, 0),
+  );
+
+  const monthlyLeaves = await prisma.leave.findMany({
+    where: {
+      userId,
+      status: {
+        not: "rejected",
+      },
+      fromDate: {
+        lte: monthWindowEnd,
+      },
+      toDate: {
+        gte: monthWindowStart,
+      },
+    },
+    select: {
+      id: true,
+      fromDate: true,
+      toDate: true,
+      isHalfDay: true,
+      halfDayType: true,
+    },
+  });
+
+  validateMonthlyLimit({
+    existingLeaves: monthlyLeaves,
+    newFromDate: parsedFromDate,
+    newToDate: parsedToDate,
+    holidays,
+    isHalfDay: isHalfDayLeave,
+  });
+
   const leaveYear = parsedFromDate.getUTCFullYear();
-  const leaveBalance = await prisma.leaveBalance.findUnique({
+  const leaveBalance = await prisma.leaveBalance.upsert({
     where: {
       userId_year: {
         userId,
         year: leaveYear,
       },
     },
+    update: {},
+    create: {
+      userId,
+      year: leaveYear,
+      total: 30,
+      used: 0,
+      remaining: 30,
+    },
     select: {
       remaining: true,
     },
   });
 
-  if (!leaveBalance || leaveBalance.remaining < totalDays) {
-    throw new Error("Insufficient leave balance");
-  }
+  validateYearlyLimit(leaveBalance.remaining, totalDays);
 
   const approver = await prisma.user.findFirst({
     where: {
@@ -151,6 +258,7 @@ export async function applyLeave(userId, data) {
         totalDays,
         reason: String(reason).trim(),
         isHalfDay: isHalfDayLeave,
+        halfDayType: isHalfDayLeave ? normalizedHalfDayType : null,
         attachment: attachment || null,
         status: "pending_dean",
         deanApproved: false,
@@ -297,6 +405,7 @@ export async function getMyLeaveHistory(userId) {
       fromDate: true,
       toDate: true,
       isHalfDay: true,
+      halfDayType: true,
       totalDays: true,
       reason: true,
       attachment: true,
@@ -365,6 +474,7 @@ export async function getPendingLeavesForDean(user) {
       fromDate: true,
       toDate: true,
       isHalfDay: true,
+      halfDayType: true,
       totalDays: true,
       reason: true,
       attachment: true,
@@ -392,6 +502,8 @@ export async function getAllLeavesForAdmin(user) {
       id: true,
       fromDate: true,
       toDate: true,
+      isHalfDay: true,
+      halfDayType: true,
       totalDays: true,
       status: true,
       reason: true,

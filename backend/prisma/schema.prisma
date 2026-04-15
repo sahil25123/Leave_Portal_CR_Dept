@@ -23,6 +23,11 @@ enum LeaveStatus {
   rejected
 }
 
+enum HalfDayType {
+  first_half
+  second_half
+}
+
 enum NotificationType {
   leave_applied
   dean_approved
@@ -51,6 +56,7 @@ model Leave {
   fromDate        DateTime
   toDate          DateTime
   isHalfDay       Boolean     @default(false)
+  halfDayType     HalfDayType?
   totalDays       Float
   reason          String
   attachment      String?

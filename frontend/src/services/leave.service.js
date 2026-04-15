@@ -10,6 +10,11 @@ export async function getMyLeaveHistoryRequest() {
   return data.leaves || [];
 }
 
+export async function getLeaveHolidaysRequest() {
+  const { data } = await api.get("/holidays");
+  return data.holidays || [];
+}
+
 export async function getMyLeaveBalanceRequest() {
   const { data } = await api.get("/leave/balance/me");
   return data.balance;
