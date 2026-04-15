@@ -1,4 +1,47 @@
-import { applyLeave as applyLeaveService } from "../services/leave.service.js";
+import {
+  applyLeave as applyLeaveService,
+  approveByDean as approveByDeanService,
+  approveByHod as approveByHodService,
+  rejectByDean as rejectByDeanService,
+  rejectByHod as rejectByHodService,
+} from "../services/leave.service.js";
+
+function parseLeaveId(idParam) {
+  const id = Number(idParam);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error("Invalid leave id");
+  }
+
+  return id;
+}
+
+function getStatusCode(message) {
+  if (message === "Unauthorized") {
+    return 401;
+  }
+
+  if (
+    message === "Forbidden" ||
+    message.includes("cannot approve your own leave") ||
+    message.includes("cannot reject your own leave") ||
+    message.startsWith("Only ") ||
+    message.startsWith("Dean can only")
+  ) {
+    return 403;
+  }
+
+  if (message === "Leave not found") {
+    return 404;
+  }
+
+  return 400;
+}
+
+function handleError(res, error, fallbackMessage) {
+  const message = error?.message || fallbackMessage;
+  return res.status(getStatusCode(message)).json({ message });
+}
 
 export async function applyLeave(req, res) {
   try {
@@ -21,8 +64,62 @@ export async function applyLeave(req, res) {
       leave,
     });
   } catch (error) {
-    return res.status(400).json({
-      message: error.message || "Failed to apply leave",
+    return handleError(res, error, "Failed to apply leave");
+  }
+}
+
+export async function approveByDean(req, res) {
+  try {
+    const leaveId = parseLeaveId(req.params.id);
+    const leave = await approveByDeanService(leaveId, req.user);
+
+    return res.status(200).json({
+      message: "Leave approved by dean",
+      leave,
     });
+  } catch (error) {
+    return handleError(res, error, "Failed to approve leave");
+  }
+}
+
+export async function approveByHod(req, res) {
+  try {
+    const leaveId = parseLeaveId(req.params.id);
+    const leave = await approveByHodService(leaveId, req.user);
+
+    return res.status(200).json({
+      message: "Leave approved by HOD",
+      leave,
+    });
+  } catch (error) {
+    return handleError(res, error, "Failed to approve leave");
+  }
+}
+
+export async function rejectByDean(req, res) {
+  try {
+    const leaveId = parseLeaveId(req.params.id);
+    const leave = await rejectByDeanService(leaveId, req.body?.reason, req.user);
+
+    return res.status(200).json({
+      message: "Leave rejected by dean",
+      leave,
+    });
+  } catch (error) {
+    return handleError(res, error, "Failed to reject leave");
+  }
+}
+
+export async function rejectByHod(req, res) {
+  try {
+    const leaveId = parseLeaveId(req.params.id);
+    const leave = await rejectByHodService(leaveId, req.body?.reason, req.user);
+
+    return res.status(200).json({
+      message: "Leave rejected by HOD",
+      leave,
+    });
+  } catch (error) {
+    return handleError(res, error, "Failed to reject leave");
   }
 }
