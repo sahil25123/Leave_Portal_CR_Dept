@@ -16,7 +16,7 @@ if (!databaseUrl) {
 const adapter = new PrismaMariaDb(databaseUrl);
 const prisma = new PrismaClient({ adapter });
 
-const DEFAULT_PASSWORD = "123";
+const DEFAULT_PASSWORD = "Admin@123456";
 const DEFAULT_TOTAL_LEAVES = 30;
 const SALT_ROUNDS = 10;
 const TRANSACTION_MAX_WAIT_MS = 30000;
