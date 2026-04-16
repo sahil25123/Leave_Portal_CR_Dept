@@ -55,10 +55,23 @@ export function AuthProvider({ children }) {
       setToken(payload.token);
       setUser(payload.user);
 
-      return payload.user;
+      return payload;
     } catch (error) {
       throw new Error(getApiErrorMessage(error, "Login failed"));
     }
+  }, []);
+
+  const mergeUser = useCallback((partialUser) => {
+    setUser((currentUser) => {
+      if (!currentUser) {
+        return currentUser;
+      }
+
+      return {
+        ...currentUser,
+        ...partialUser,
+      };
+    });
   }, []);
 
   const value = useMemo(
@@ -69,8 +82,9 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(token && user),
       login,
       logout,
+      mergeUser,
     }),
-    [isAuthLoading, login, logout, token, user],
+    [isAuthLoading, login, logout, mergeUser, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

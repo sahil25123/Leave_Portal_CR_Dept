@@ -64,6 +64,11 @@ function Navbar() {
     navigate("/login", { replace: true });
   }
 
+  function handleNavigate(path) {
+    setIsProfileMenuOpen(false);
+    navigate(path);
+  }
+
   return (
     <header className="w-full border-b border-slate-200 bg-white">
       <div className="mx-auto grid w-full max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-4 md:px-6">
@@ -120,6 +125,20 @@ function Navbar() {
                   <p className="mb-3 text-xs uppercase tracking-wide text-slate-500">
                     {user?.role}
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate("/profile")}
+                    className="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Profile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate("/change-password")}
+                    className="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Change Password
+                  </button>
                   <button
                     type="button"
                     onClick={handleLogout}

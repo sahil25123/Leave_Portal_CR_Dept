@@ -10,6 +10,7 @@ import {
   updateUserRequest,
 } from "../services/admin.service";
 import { getApiErrorMessage } from "../services/api";
+import { getPasswordValidationMessage } from "../utils/passwordValidation";
 
 const INITIAL_CREATE_FORM = {
   name: "",
@@ -87,6 +88,17 @@ function UserManagement() {
 
   async function handleCreate(event) {
     event.preventDefault();
+
+    const passwordValidationMessage = getPasswordValidationMessage(
+      createForm.password,
+    );
+
+    if (passwordValidationMessage) {
+      setError(passwordValidationMessage);
+      setSuccess("");
+      return;
+    }
+
     setError("");
     setSuccess("");
     setIsCreateSubmitting(true);

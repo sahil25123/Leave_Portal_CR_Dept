@@ -1,4 +1,8 @@
-import { getCurrentUser, loginUser } from "../services/auth.service.js";
+import {
+  changePassword as changePasswordService,
+  getCurrentUser,
+  loginUser,
+} from "../services/auth.service.js";
 
 export async function login(req, res) {
   try {
@@ -28,6 +32,21 @@ export async function me(req, res) {
   } catch (error) {
     return res.status(400).json({
       message: error.message || "Unable to fetch user",
+    });
+  }
+}
+
+export async function changePassword(req, res) {
+  try {
+    const result = await changePasswordService(req.user.id, req.body);
+
+    return res.status(200).json({
+      message: "Password changed successfully",
+      user: result.user,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: error.message || "Unable to change password",
     });
   }
 }

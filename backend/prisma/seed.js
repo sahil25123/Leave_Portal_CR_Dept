@@ -84,6 +84,7 @@ async function upsertUserAndLeaveBalance(
     update: {
       name: userData.name,
       password: hashedPassword,
+      mustChangePassword: true,
       designation: userData.designation,
       role: userData.role,
     },
@@ -91,6 +92,7 @@ async function upsertUserAndLeaveBalance(
       name: userData.name,
       email: userData.email,
       password: hashedPassword,
+      mustChangePassword: true,
       designation: userData.designation,
       role: userData.role,
     },
@@ -162,7 +164,8 @@ export async function main() {
 
   for (const userData of usersToSeed) {
     const user = await prisma.$transaction(
-      (tx) => upsertUserAndLeaveBalance(tx, userData, hashedPassword, leaveYear),
+      (tx) =>
+        upsertUserAndLeaveBalance(tx, userData, hashedPassword, leaveYear),
       {
         maxWait: TRANSACTION_MAX_WAIT_MS,
         timeout: TRANSACTION_TIMEOUT_MS,

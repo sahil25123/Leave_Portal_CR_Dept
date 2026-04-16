@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import ErrorAlert from "../components/ErrorAlert";
+import PasswordField from "../components/forms/PasswordField";
 import { useAuth } from "../hooks/useAuth";
 
 const ALLOWED_PORTAL_ROLES = ["staff", "dean", "admin"];
@@ -26,11 +27,20 @@ function Login() {
     setError("");
 
     try {
-      const loggedInUser = await login(email, password);
+      const loginPayload = await login(email, password);
+      const loggedInUser = loginPayload.user;
 
       if (!ALLOWED_PORTAL_ROLES.includes(loggedInUser.role)) {
         logout();
         setError("This role is not allowed to access this portal");
+        return;
+      }
+
+      if (
+        loginPayload.requirePasswordChange ||
+        loggedInUser.mustChangePassword
+      ) {
+        navigate("/change-password", { replace: true });
         return;
       }
 
@@ -45,6 +55,10 @@ function Login() {
   const hasSupportedRole = ALLOWED_PORTAL_ROLES.includes(user?.role);
 
   if (!isAuthLoading && isAuthenticated && hasSupportedRole) {
+    if (user?.mustChangePassword) {
+      return <Navigate to="/change-password" replace />;
+    }
+
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -52,7 +66,9 @@ function Login() {
     return (
       <main className="grid place-items-center p-4 py-10">
         <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-900">Access Restricted</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            Access Restricted
+          </h1>
           <p className="mt-2 text-sm text-slate-600">
             Role "{user?.role}" is not allowed in this portal.
           </p>
@@ -71,14 +87,19 @@ function Login() {
   return (
     <main className="grid place-items-center p-4 py-10">
       <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">Leave Portal Login</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">
+          Leave Portal Login
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
           Sign in with your IITD corporate relations account.
         </p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
+            <label
+              className="mb-1 block text-sm font-medium text-slate-700"
+              htmlFor="email"
+            >
               Email
             </label>
             <input
@@ -94,22 +115,17 @@ function Login() {
             />
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-                setError("");
-              }}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-              placeholder="Enter your password"
-            />
-          </div>
+          <PasswordField
+            id="password"
+            label="Password"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setError("");
+            }}
+            placeholder="Enter your password"
+            autoComplete="current-password"
+          />
 
           <ErrorAlert message={error} />
 

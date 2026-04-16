@@ -1,3 +1,6 @@
+import { getPasswordValidationMessage } from "../../utils/passwordValidation";
+import PasswordField from "./PasswordField";
+
 function UserForm({
   mode = "create",
   values,
@@ -7,6 +10,11 @@ function UserForm({
   isSubmitting,
 }) {
   const isCreate = mode === "create";
+  const passwordValidationMessage = isCreate
+    ? getPasswordValidationMessage(values.password)
+    : "";
+  const isSubmitDisabled =
+    isSubmitting || (isCreate && Boolean(passwordValidationMessage));
 
   return (
     <form
@@ -70,18 +78,20 @@ function UserForm({
           </div>
 
           <div>
-            <label
-              className="mb-1 block text-sm font-medium text-slate-700"
-              htmlFor="create-password"
-            >
-              Password
-            </label>
-            <input
+            <PasswordField
               id="create-password"
-              type="password"
+              label="Password"
               value={values.password}
               onChange={(event) => onChange("password", event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Create a secure password"
+              autoComplete="new-password"
+              required
+              errorText={values.password ? passwordValidationMessage : ""}
+              helperText={
+                !values.password
+                  ? "Password must contain uppercase, lowercase, number, and special character"
+                  : ""
+              }
             />
           </div>
         </div>
@@ -109,7 +119,7 @@ function UserForm({
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitDisabled}
           className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
           {isSubmitting

@@ -4,6 +4,7 @@ import {
   ensureLeaveBalanceForYear,
   getActiveYearOrNull,
 } from "./year.service.js";
+import { validateStrongPassword } from "../utils/passwordValidator.js";
 
 const ALLOWED_ROLES = new Set(["staff", "dean", "admin"]);
 const SALT_ROUNDS = 10;
@@ -39,6 +40,7 @@ export async function getAllUsers(currentUser) {
       email: true,
       role: true,
       designation: true,
+      mustChangePassword: true,
       createdAt: true,
     },
   });
@@ -59,6 +61,8 @@ export async function createUser(currentUser, payload) {
     throw new Error("name, email, password, role and designation are required");
   }
 
+  validateStrongPassword(password);
+
   const existingUser = await prisma.user.findUnique({
     where: { email },
     select: { id: true },
@@ -77,6 +81,7 @@ export async function createUser(currentUser, payload) {
       password: hashedPassword,
       role,
       designation,
+      mustChangePassword: true,
     },
     select: {
       id: true,
@@ -84,6 +89,7 @@ export async function createUser(currentUser, payload) {
       email: true,
       role: true,
       designation: true,
+      mustChangePassword: true,
       createdAt: true,
     },
   });
@@ -133,6 +139,7 @@ export async function updateUser(currentUser, userId, payload) {
       email: true,
       role: true,
       designation: true,
+      mustChangePassword: true,
       createdAt: true,
     },
   });

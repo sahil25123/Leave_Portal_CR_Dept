@@ -11,6 +11,8 @@ import LeaveApply from "./pages/LeaveApply";
 import Approvals from "./pages/Approvals";
 import YearManagement from "./pages/YearManagement";
 import UserManagement from "./pages/UserManagement";
+import ChangePassword from "./pages/ChangePassword";
+import Profile from "./pages/Profile";
 
 function App() {
   return (
@@ -24,6 +26,8 @@ function App() {
 
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/change-password" element={<ChangePassword />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["staff"]} />}>
