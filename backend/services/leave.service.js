@@ -5,9 +5,13 @@ import {
   checkOverlap,
   isNonWorkingDate,
   toDateOnly,
-  validateMonthlyLimit,
   validateYearlyLimit,
 } from "../utils/leaveValidator.js";
+import {
+  sendLeaveApplicationSubmittedEmails,
+  sendLeaveApprovedEmail,
+  sendLeaveRejectedEmail,
+} from "./email.service.js";
 import { ensureLeaveBalanceForYear, getActiveYear } from "./year.service.js";
 
 const { NotificationType } = prismaPkg;
@@ -17,6 +21,21 @@ const NOTIFICATION_TYPE = {
   leaveApproved: NotificationType?.leave_approved || "final_decision",
   leaveRejected: NotificationType?.leave_rejected || "final_decision",
 };
+const EPSILON = 1e-9;
+
+function formatLimitValue(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return String(value);
+  }
+
+  if (Number.isInteger(numericValue)) {
+    return String(numericValue);
+  }
+
+  return String(Number(numericValue.toFixed(2)));
+}
 
 function parseAndValidateDates(fromDate, toDate) {
   const parsedFromDate = toDateOnly(fromDate);
@@ -191,6 +210,7 @@ async function getLeaveWithApplicant(leaveId) {
           id: true,
           role: true,
           name: true,
+          email: true,
         },
       },
       leaveYear: {
@@ -230,6 +250,8 @@ export async function applyLeave(userId, data) {
     select: {
       id: true,
       role: true,
+      name: true,
+      email: true,
     },
   });
 
@@ -352,14 +374,54 @@ export async function applyLeave(userId, data) {
     },
   });
 
-  validateMonthlyLimit({
-    existingLeaves: monthlyLeaves,
-    newFromDate: parsedFromDate,
-    newToDate: parsedToDate,
-    holidays,
-    isHalfDay: isHalfDayLeave,
-    monthlyLimit: activeYear.monthlyLimit,
-  });
+  const holidaySet = buildHolidayDateSet(holidays);
+  const existingUsageByMonth = new Map();
+
+  for (const leave of monthlyLeaves) {
+    const leaveFromDate = toDateOnly(leave.fromDate);
+    const leaveToDate = toDateOnly(leave.toDate);
+
+    if (!leaveFromDate || !leaveToDate) {
+      continue;
+    }
+
+    const usageByMonth = calculateWorkingDaysByMonthWithHolidaySet(
+      leaveFromDate,
+      leaveToDate,
+      holidaySet,
+      leave.isHalfDay === true,
+    );
+
+    for (const [monthKey, monthDays] of usageByMonth.entries()) {
+      const existingDays = existingUsageByMonth.get(monthKey) || 0;
+      existingUsageByMonth.set(monthKey, existingDays + monthDays);
+    }
+  }
+
+  const requestedUsageByMonth = calculateWorkingDaysByMonthWithHolidaySet(
+    parsedFromDate,
+    parsedToDate,
+    holidaySet,
+    isHalfDayLeave,
+  );
+
+  const monthlyLimit = Number(activeYear.monthlyLimit);
+
+  for (const [monthKey, requestedDays] of requestedUsageByMonth.entries()) {
+    const currentDays = Number(existingUsageByMonth.get(monthKey) || 0);
+
+    if (currentDays >= monthlyLimit - EPSILON) {
+      throw new Error(
+        "Monthly quota exhausted (" + formatLimitValue(monthlyLimit) + " days)",
+      );
+    }
+
+    if (currentDays + requestedDays > monthlyLimit + EPSILON) {
+      throw new Error(
+        "Monthly limit exceeded (" + formatLimitValue(monthlyLimit) + " days)",
+      );
+    }
+  }
 
   const leaveBalance = await ensureLeaveBalanceForYear(userId, activeYear);
 
@@ -375,6 +437,8 @@ export async function applyLeave(userId, data) {
     },
     select: {
       id: true,
+      name: true,
+      email: true,
     },
   });
 
@@ -412,11 +476,41 @@ export async function applyLeave(userId, data) {
     return createdLeave;
   });
 
+  try {
+    await sendLeaveApplicationSubmittedEmails({
+      dean: {
+        name: approver.name,
+        email: approver.email,
+      },
+      applicant: {
+        name: user.name,
+        email: user.email,
+      },
+      leave,
+    });
+  } catch (error) {
+    console.error(
+      "[email] Leave application email dispatch failed:",
+      error?.message || error,
+    );
+  }
+
   return leave;
 }
 
 export async function approveByDean(leaveId, user) {
   ensureActorRole(user, "dean");
+
+  const deanProfile = await prisma.user.findUnique({
+    where: {
+      id: user.id,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
 
   const leave = await getLeaveWithApplicant(leaveId);
 
@@ -431,7 +525,7 @@ export async function approveByDean(leaveId, user) {
     throw new Error("Leave year not found for this request");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const updatedLeave = await prisma.$transaction(async (tx) => {
     const leaveBalance = await tx.leaveBalance.findUnique({
       where: {
         userId_yearId: {
@@ -488,10 +582,46 @@ export async function approveByDean(leaveId, user) {
 
     return updatedLeave;
   });
+
+  try {
+    await sendLeaveApprovedEmail({
+      dean: {
+        name: deanProfile?.name || "Dean",
+        email: deanProfile?.email || "",
+      },
+      applicant: {
+        name: leave.user.name,
+        email: leave.user.email,
+      },
+      leave: {
+        ...leave,
+        ...updatedLeave,
+        status: "approved",
+      },
+    });
+  } catch (error) {
+    console.error(
+      "[email] Leave approval email dispatch failed:",
+      error?.message || error,
+    );
+  }
+
+  return updatedLeave;
 }
 
 export async function rejectByDean(leaveId, reason, user) {
   ensureActorRole(user, "dean");
+
+  const deanProfile = await prisma.user.findUnique({
+    where: {
+      id: user.id,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
 
   const rejectionReason = String(reason || "").trim();
 
@@ -508,7 +638,7 @@ export async function rejectByDean(leaveId, reason, user) {
     throw new Error("Dean can only reject staff leave requests");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const updatedLeave = await prisma.$transaction(async (tx) => {
     const updatedLeave = await tx.leave.update({
       where: { id: leave.id },
       data: {
@@ -530,6 +660,32 @@ export async function rejectByDean(leaveId, reason, user) {
 
     return updatedLeave;
   });
+
+  try {
+    await sendLeaveRejectedEmail({
+      dean: {
+        name: deanProfile?.name || "Dean",
+        email: deanProfile?.email || "",
+      },
+      applicant: {
+        name: leave.user.name,
+        email: leave.user.email,
+      },
+      leave: {
+        ...leave,
+        ...updatedLeave,
+        status: "rejected",
+      },
+      remarks: rejectionReason,
+    });
+  } catch (error) {
+    console.error(
+      "[email] Leave rejection email dispatch failed:",
+      error?.message || error,
+    );
+  }
+
+  return updatedLeave;
 }
 
 export async function getMyLeaveHistory(userId) {
