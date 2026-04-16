@@ -64,7 +64,11 @@ function parseLocalDateKey(value) {
   const month = Number(parts[1]);
   const day = Number(parts[2]);
 
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day)
+  ) {
     return null;
   }
 
@@ -129,7 +133,9 @@ function LeaveApply() {
     return set;
   }, [holidays]);
   const pickerHolidayDateSet = useMemo(() => {
-    return new Set(holidayDates.map((holidayDate) => toLocalDateKey(holidayDate)));
+    return new Set(
+      holidayDates.map((holidayDate) => toLocalDateKey(holidayDate)),
+    );
   }, [holidayDates]);
   const holidayNameByDate = useMemo(() => {
     const map = new Map();
@@ -491,7 +497,11 @@ function LeaveApply() {
 
       if (holidayName) {
         setFieldError(
-          "Cannot select " + toLocalDateKey(selectedDate) + " (" + holidayName + ")",
+          "Cannot select " +
+            toLocalDateKey(selectedDate) +
+            " (" +
+            holidayName +
+            ")",
         );
         return;
       }
@@ -504,7 +514,8 @@ function LeaveApply() {
       if (
         activeYearStartLocal &&
         activeYearEndLocal &&
-        (selectedDate < activeYearStartLocal || selectedDate > activeYearEndLocal)
+        (selectedDate < activeYearStartLocal ||
+          selectedDate > activeYearEndLocal)
       ) {
         setFieldError("Date must be within active year");
         return;

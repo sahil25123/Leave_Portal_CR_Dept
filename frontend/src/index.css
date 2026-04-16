@@ -3,17 +3,17 @@
 @tailwind utilities;
 
 .react-datepicker-wrapper {
-	width: 100%;
+  width: 100%;
 }
 
 .react-datepicker__day--disabled,
 .react-datepicker__day--outside-month {
-	color: #94a3b8 !important;
-	background-color: #f1f5f9 !important;
-	cursor: not-allowed !important;
+  color: #94a3b8 !important;
+  background-color: #f1f5f9 !important;
+  cursor: not-allowed !important;
 }
 
 .react-datepicker__day--disabled:hover,
 .react-datepicker__day--outside-month:hover {
-	background-color: #f1f5f9 !important;
+  background-color: #f1f5f9 !important;
 }
