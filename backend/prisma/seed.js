@@ -19,6 +19,8 @@ const prisma = new PrismaClient({ adapter });
 const DEFAULT_PASSWORD = "123";
 const DEFAULT_TOTAL_LEAVES = 30;
 const SALT_ROUNDS = 10;
+const TRANSACTION_MAX_WAIT_MS = 30000;
+const TRANSACTION_TIMEOUT_MS = 120000;
 
 const usersToSeed = [
   {
@@ -159,8 +161,12 @@ export async function main() {
   });
 
   for (const userData of usersToSeed) {
-    const user = await prisma.$transaction((tx) =>
-      upsertUserAndLeaveBalance(tx, userData, hashedPassword, leaveYear),
+    const user = await prisma.$transaction(
+      (tx) => upsertUserAndLeaveBalance(tx, userData, hashedPassword, leaveYear),
+      {
+        maxWait: TRANSACTION_MAX_WAIT_MS,
+        timeout: TRANSACTION_TIMEOUT_MS,
+      },
     );
 
     console.log(`Seeded user: ${user.email}`);

@@ -1,4 +1,4 @@
-const COMPANY_NAME = "Corporate Relations, IIT Delhi";
+const COMPANY_NAME = "Leave Management Portal - Corporate Relations";
 const COMPANY_LOGO_URL =
   process.env.COMPANY_LOGO_URL ||
   "https://upload.wikimedia.org/wikipedia/en/thumb/e/e3/Indian_Institute_of_Technology_Delhi_Logo.svg/120px-Indian_Institute_of_Technology_Delhi_Logo.svg.png";

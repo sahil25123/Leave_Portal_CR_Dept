@@ -13,7 +13,6 @@ function Navbar() {
     { to: "/dashboard", label: "Dashboard", roles: ["staff", "dean", "admin"] },
     { to: "/apply-leave", label: "Apply Leave", roles: ["staff"] },
     { to: "/approvals", label: "Approvals", roles: ["dean"] },
-    { to: "/admin", label: "Admin", roles: ["admin"] },
     { to: "/admin/years", label: "Years", roles: ["admin"] },
     { to: "/admin/users", label: "Users", roles: ["admin"] },
     { to: "/admin/holidays", label: "Holidays", roles: ["admin"] },
