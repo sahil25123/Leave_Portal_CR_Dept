@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import DatePicker from "react-datepicker";
 import { Link } from "react-router-dom";
 import AppShell from "../components/AppShell";
 import ErrorAlert from "../components/ErrorAlert";
 import LoadingState from "../components/LoadingState";
+import "react-datepicker/dist/react-datepicker.css";
 import { getApiErrorMessage } from "../services/api";
 import {
   applyLeaveRequest,
@@ -12,7 +14,6 @@ import {
   getMyLeaveHistoryRequest,
 } from "../services/leave.service";
 import {
-  buildHolidayDateSet,
   calculateWorkingDays,
   checkMonthlyLimitWarning,
   checkOverlapWarning,
@@ -23,6 +24,58 @@ import {
 } from "../utils/leaveValidation";
 
 const ALLOWED_FILE_EXTENSIONS = new Set(["pdf", "doc", "docx"]);
+
+function toLocalStartOfDay(input) {
+  if (!input) {
+    return null;
+  }
+
+  const date = input instanceof Date ? new Date(input) : new Date(input);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function toLocalDateKey(input) {
+  const date = toLocalStartOfDay(input);
+
+  if (!date) {
+    return "";
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return year + "-" + month + "-" + day;
+}
+
+function parseLocalDateKey(value) {
+  const parts = String(value || "").split("-");
+
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  const date = new Date(year, month - 1, day);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
 
 function getFileExtension(fileName) {
   const parts = String(fileName || "").split(".");
@@ -56,19 +109,42 @@ function LeaveApply() {
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const todayDate = useMemo(() => toDateKey(new Date()), []);
-  const holidayDateSet = useMemo(
-    () => buildHolidayDateSet(holidays),
-    [holidays],
-  );
-  const holidayNameByDate = useMemo(() => {
-    const map = new Map();
+  const todayDate = useMemo(() => toLocalStartOfDay(new Date()), []);
+  const holidayDates = useMemo(() => {
+    return holidays
+      .map((holiday) => toLocalStartOfDay(holiday?.date))
+      .filter(Boolean);
+  }, [holidays]);
+  const holidayDateSet = useMemo(() => {
+    const set = new Set();
 
     for (const holiday of holidays) {
       const dateKey = toDateKey(holiday?.date);
 
       if (dateKey) {
-        map.set(dateKey, holiday?.name || "Holiday");
+        set.add(dateKey);
+      }
+    }
+
+    return set;
+  }, [holidays]);
+  const pickerHolidayDateSet = useMemo(() => {
+    return new Set(holidayDates.map((holidayDate) => toLocalDateKey(holidayDate)));
+  }, [holidayDates]);
+  const holidayNameByDate = useMemo(() => {
+    const map = new Map();
+
+    for (const holiday of holidays) {
+      const dateKey = toDateKey(holiday?.date);
+      const localDateKey = toLocalDateKey(holiday?.date);
+      const holidayName = holiday?.name || "Holiday";
+
+      if (dateKey) {
+        map.set(dateKey, holidayName);
+      }
+
+      if (localDateKey) {
+        map.set(localDateKey, holidayName);
       }
     }
 
@@ -84,6 +160,100 @@ function LeaveApply() {
   const activeYearEnd = useMemo(
     () => toDateOnly(balance?.endDate),
     [balance?.endDate],
+  );
+  const activeYearStartLocal = useMemo(
+    () => toLocalStartOfDay(activeYearStart),
+    [activeYearStart],
+  );
+  const activeYearEndLocal = useMemo(
+    () => toLocalStartOfDay(activeYearEnd),
+    [activeYearEnd],
+  );
+  const fromDatePickerValue = useMemo(
+    () => parseLocalDateKey(form.fromDate),
+    [form.fromDate],
+  );
+  const toDatePickerValue = useMemo(
+    () => parseLocalDateKey(form.toDate),
+    [form.toDate],
+  );
+  const minSelectableDate = useMemo(() => {
+    if (!todayDate) {
+      return activeYearStartLocal;
+    }
+
+    if (!activeYearStartLocal) {
+      return todayDate;
+    }
+
+    return activeYearStartLocal > todayDate ? activeYearStartLocal : todayDate;
+  }, [activeYearStartLocal, todayDate]);
+  const minToDate = useMemo(() => {
+    if (!fromDatePickerValue) {
+      return minSelectableDate;
+    }
+
+    if (!minSelectableDate) {
+      return fromDatePickerValue;
+    }
+
+    return fromDatePickerValue > minSelectableDate
+      ? fromDatePickerValue
+      : minSelectableDate;
+  }, [fromDatePickerValue, minSelectableDate]);
+  const maxSelectableDate = useMemo(
+    () => activeYearEndLocal || null,
+    [activeYearEndLocal],
+  );
+
+  const filterSelectableDate = useCallback(
+    (candidateDate) => {
+      const normalizedDate = toLocalStartOfDay(candidateDate);
+
+      if (!normalizedDate) {
+        return false;
+      }
+
+      if (normalizedDate.getDay() === 0) {
+        return false;
+      }
+
+      if (pickerHolidayDateSet.has(toLocalDateKey(normalizedDate))) {
+        return false;
+      }
+
+      if (minSelectableDate && normalizedDate < minSelectableDate) {
+        return false;
+      }
+
+      if (maxSelectableDate && normalizedDate > maxSelectableDate) {
+        return false;
+      }
+
+      return true;
+    },
+    [maxSelectableDate, minSelectableDate, pickerHolidayDateSet],
+  );
+
+  const filterToDate = useCallback(
+    (candidateDate) => {
+      if (!filterSelectableDate(candidateDate)) {
+        return false;
+      }
+
+      const normalizedDate = toDateOnly(candidateDate);
+
+      if (!normalizedDate) {
+        return false;
+      }
+
+      if (fromDatePickerValue && normalizedDate < fromDatePickerValue) {
+        return false;
+      }
+
+      return true;
+    },
+    [filterSelectableDate, fromDatePickerValue],
   );
   const calculatedDays = useMemo(() => {
     return calculateWorkingDays(
@@ -304,41 +474,47 @@ function LeaveApply() {
   }
 
   function handleDateChange(field, value) {
-    if (!value) {
+    const selectedDate = toLocalStartOfDay(value);
+
+    if (!selectedDate) {
       updateField(field, "");
       return;
     }
 
-    if (isPastDate(value)) {
-      setFieldError("Past dates cannot be selected");
-      return;
-    }
-
-    const selectedDate = toDateOnly(value);
-
-    if (
-      activeYearStart &&
-      activeYearEnd &&
-      selectedDate &&
-      (selectedDate < activeYearStart || selectedDate > activeYearEnd)
-    ) {
-      setFieldError("Date must be within active year");
-      return;
-    }
-
-    if (isNonWorkingDate(value, holidayDateSet)) {
-      const holidayName = holidayNameByDate.get(value);
-
-      if (holidayName) {
-        setFieldError("Cannot select " + value + " (" + holidayName + ")");
-      } else {
-        setFieldError("Cannot apply leave on holiday or Sunday");
+    if (!filterSelectableDate(selectedDate)) {
+      if (selectedDate.getDay() === 0) {
+        setFieldError("Cannot apply leave on Sunday");
+        return;
       }
 
+      const holidayName = holidayNameByDate.get(toLocalDateKey(selectedDate));
+
+      if (holidayName) {
+        setFieldError(
+          "Cannot select " + toLocalDateKey(selectedDate) + " (" + holidayName + ")",
+        );
+        return;
+      }
+
+      if (todayDate && selectedDate < todayDate) {
+        setFieldError("Past dates cannot be selected");
+        return;
+      }
+
+      if (
+        activeYearStartLocal &&
+        activeYearEndLocal &&
+        (selectedDate < activeYearStartLocal || selectedDate > activeYearEndLocal)
+      ) {
+        setFieldError("Date must be within active year");
+        return;
+      }
+
+      setFieldError("Date cannot be selected");
       return;
     }
 
-    updateField(field, value);
+    updateField(field, toLocalDateKey(selectedDate));
   }
 
   function handleAttachmentChange(event) {
@@ -427,14 +603,17 @@ function LeaveApply() {
               >
                 From Date
               </label>
-              <input
+              <DatePicker
                 id="fromDate"
-                type="date"
-                min={todayDate}
-                value={form.fromDate}
-                onChange={(event) =>
-                  handleDateChange("fromDate", event.target.value)
-                }
+                selected={fromDatePickerValue}
+                onChange={(date) => handleDateChange("fromDate", date)}
+                filterDate={filterSelectableDate}
+                minDate={minSelectableDate || undefined}
+                maxDate={maxSelectableDate || undefined}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="dd/mm/yyyy"
+                autoComplete="off"
+                onChangeRaw={(event) => event.preventDefault()}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
@@ -446,14 +625,17 @@ function LeaveApply() {
               >
                 To Date
               </label>
-              <input
+              <DatePicker
                 id="toDate"
-                type="date"
-                min={form.fromDate || todayDate}
-                value={form.toDate}
-                onChange={(event) =>
-                  handleDateChange("toDate", event.target.value)
-                }
+                selected={toDatePickerValue}
+                onChange={(date) => handleDateChange("toDate", date)}
+                filterDate={filterToDate}
+                minDate={minToDate || undefined}
+                maxDate={maxSelectableDate || undefined}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="dd/mm/yyyy"
+                autoComplete="off"
+                onChangeRaw={(event) => event.preventDefault()}
                 disabled={form.isHalfDay}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
