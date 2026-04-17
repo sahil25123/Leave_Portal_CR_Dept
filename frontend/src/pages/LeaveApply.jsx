@@ -24,6 +24,14 @@ import {
 } from "../utils/leaveValidation";
 
 const ALLOWED_FILE_EXTENSIONS = new Set(["pdf", "doc", "docx"]);
+const ALLOWED_FILE_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.ms-word",
+  "application/vnd.msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+const MAX_ATTACHMENT_SIZE_BYTES = 2 * 1024 * 1024;
 
 function toLocalStartOfDay(input) {
   if (!input) {
@@ -544,6 +552,20 @@ function LeaveApply() {
       return;
     }
 
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      setFieldError("File size must be 2MB or less");
+      event.target.value = "";
+      return;
+    }
+
+    const normalizedMimeType = String(file.type || "").toLowerCase();
+
+    if (!ALLOWED_FILE_MIME_TYPES.has(normalizedMimeType)) {
+      setFieldError("Only PDF, DOC, and DOCX files are allowed");
+      event.target.value = "";
+      return;
+    }
+
     updateField("attachment", file);
   }
 
@@ -792,7 +814,7 @@ function LeaveApply() {
                 </p>
               ) : (
                 <p className="mt-1 text-xs text-slate-500">
-                  Allowed formats: PDF, DOC, DOCX
+                  Allowed formats: PDF, DOC, DOCX | Max size: 2MB
                 </p>
               )}
             </div>

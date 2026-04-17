@@ -3,19 +3,25 @@ import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
 import { jwtSecret, jwtExpiresIn } from "../config/jwt.config.js";
 import { validateStrongPassword } from "../utils/passwordValidator.js";
+import { assertValidEmail, normalizeEmail } from "../utils/inputValidator.js";
 
 const SALT_ROUNDS = 10;
 
 export async function loginUser(email, password) {
+  const normalizedEmail = normalizeEmail(email);
+  const plainPassword = String(password || "");
+
+  assertValidEmail(normalizedEmail, "Invalid email");
+
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: { email: normalizedEmail },
   });
 
   if (!user) {
-    throw new Error("User not found");
+    throw new Error("Invalid credentials");
   }
 
-  const isPasswordValid = await bcrypt.compare(password, user.password);
+  const isPasswordValid = await bcrypt.compare(plainPassword, user.password);
 
   if (!isPasswordValid) {
     throw new Error("Invalid credentials");
@@ -47,9 +53,9 @@ export async function loginUser(email, password) {
 }
 
 export async function changePassword(userId, payload) {
-  const oldPassword = String(payload?.oldPassword || "").trim();
-  const newPassword = String(payload?.newPassword || "").trim();
-  const confirmPassword = String(payload?.confirmPassword || "").trim();
+  const oldPassword = String(payload?.oldPassword || "");
+  const newPassword = String(payload?.newPassword || "");
+  const confirmPassword = String(payload?.confirmPassword || "");
 
   if (!oldPassword || !newPassword || !confirmPassword) {
     throw new Error(

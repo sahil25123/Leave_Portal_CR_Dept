@@ -3,7 +3,24 @@ import path from "path";
 import multer from "multer";
 
 const uploadDirectory = path.join(process.cwd(), "uploads");
-const allowedExtensions = new Set([".pdf", ".doc", ".docx"]);
+const MAX_UPLOAD_SIZE_BYTES = 2 * 1024 * 1024;
+const allowedMimeTypesByExtension = new Map([
+  [".pdf", new Set(["application/pdf"])],
+  [
+    ".doc",
+    new Set([
+      "application/msword",
+      "application/vnd.ms-word",
+      "application/vnd.msword",
+    ]),
+  ],
+  [
+    ".docx",
+    new Set([
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ]),
+  ],
+]);
 
 if (!fs.existsSync(uploadDirectory)) {
   fs.mkdirSync(uploadDirectory, { recursive: true });
@@ -23,7 +40,8 @@ const storage = multer.diskStorage({
   filename: (_req, file, callback) => {
     const extension = path.extname(file.originalname || "").toLowerCase();
     const safeBaseName = sanitizeFileBaseName(file.originalname || "file");
-    const fileName = Date.now() + "-" + safeBaseName + extension;
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const fileName = uniqueSuffix + "-" + safeBaseName + extension;
 
     callback(null, fileName);
   },
@@ -32,12 +50,18 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024,
+    fileSize: MAX_UPLOAD_SIZE_BYTES,
   },
   fileFilter: (_req, file, callback) => {
     const extension = path.extname(file.originalname || "").toLowerCase();
+    const normalizedMimeType = String(file.mimetype || "").toLowerCase();
+    const allowedMimeTypes = allowedMimeTypesByExtension.get(extension);
 
-    if (!allowedExtensions.has(extension)) {
+    if (!allowedMimeTypes) {
+      return callback(new Error("Only PDF, DOC, and DOCX files are allowed"));
+    }
+
+    if (!allowedMimeTypes.has(normalizedMimeType)) {
       return callback(new Error("Only PDF, DOC, and DOCX files are allowed"));
     }
 
@@ -49,6 +73,12 @@ export function uploadLeaveAttachment(req, res, next) {
   upload.single("attachment")(req, res, (error) => {
     if (!error) {
       return next();
+    }
+
+    if (error.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({
+        message: "File size must be 2MB or less",
+      });
     }
 
     return res.status(400).json({

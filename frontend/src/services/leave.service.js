@@ -1,10 +1,18 @@
 import api from "./api";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+  import.meta.env.VITE_API_BASE_URL || api.defaults.baseURL || "/api";
 
 function getApiOrigin() {
-  return API_BASE_URL.replace(/\/api\/?$/, "");
+  if (/^https?:\/\//i.test(API_BASE_URL)) {
+    return API_BASE_URL.replace(/\/api\/?$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return "";
 }
 
 export async function applyLeaveRequest(payload) {

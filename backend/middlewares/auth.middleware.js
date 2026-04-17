@@ -1,12 +1,19 @@
 import jwt from "jsonwebtoken";
 import { jwtSecret } from "../config/jwt.config.js";
+import { isValidRole } from "../utils/inputValidator.js";
 
 function getBearerToken(authorizationHeader) {
-  if (!authorizationHeader || !authorizationHeader.startsWith("Bearer ")) {
+  if (typeof authorizationHeader !== "string") {
     return null;
   }
 
-  const token = authorizationHeader.split(" ")[1];
+  const parts = authorizationHeader.trim().split(/\s+/);
+
+  if (parts.length !== 2 || parts[0] !== "Bearer") {
+    return null;
+  }
+
+  const token = parts[1];
   return token || null;
 }
 
@@ -21,12 +28,15 @@ export function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, jwtSecret);
+    const userId = Number(decoded?.id);
+    const role = String(decoded?.role || "").toLowerCase();
 
     if (
       !decoded ||
       typeof decoded !== "object" ||
-      !decoded.id ||
-      !decoded.role
+      !Number.isInteger(userId) ||
+      userId <= 0 ||
+      !isValidRole(role)
     ) {
       return res.status(401).json({
         message: "Unauthorized",
@@ -34,8 +44,8 @@ export function authenticate(req, res, next) {
     }
 
     req.user = {
-      id: decoded.id,
-      role: decoded.role,
+      id: userId,
+      role,
     };
 
     return next();

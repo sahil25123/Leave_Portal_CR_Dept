@@ -10,6 +10,8 @@ import {
   getPendingLeavesForDean as getPendingLeavesForDeanService,
   rejectByDean as rejectByDeanService,
 } from "../services/leave.service.js";
+import { getRequestContext, logAuditEvent } from "../utils/auditLogger.js";
+import { sendSafeErrorResponse } from "../utils/errorResponder.js";
 
 function parseId(idParam, label) {
   const id = Number(idParam);
@@ -22,6 +24,8 @@ function parseId(idParam, label) {
 }
 
 function getStatusCode(message) {
+  const normalized = String(message || "").toLowerCase();
+
   if (message === "Unauthorized") {
     return 401;
   }
@@ -37,19 +41,42 @@ function getStatusCode(message) {
   }
 
   if (
-    message === "Leave not found" ||
-    message.endsWith("not found") ||
-    message.includes("not found")
+    normalized === "leave not found" ||
+    normalized.endsWith("not found") ||
+    normalized.includes("not found")
   ) {
     return 404;
   }
 
-  return 400;
+  if (normalized.includes("too many")) {
+    return 429;
+  }
+
+  if (
+    normalized.includes("required") ||
+    normalized.includes("invalid") ||
+    normalized.includes("cannot") ||
+    normalized.includes("must") ||
+    normalized.includes("exceeded") ||
+    normalized.includes("exhausted")
+  ) {
+    return 400;
+  }
+
+  return 500;
 }
 
-function handleError(res, error, fallbackMessage) {
-  const message = error?.message || fallbackMessage;
-  return res.status(getStatusCode(message)).json({ message });
+function handleError(req, res, error, fallbackMessage, logEvent) {
+  return sendSafeErrorResponse(res, error, {
+    fallbackMessage,
+    statusCodeResolver: getStatusCode,
+    logEvent,
+    logMeta: {
+      ...getRequestContext(req),
+      userId: req.user?.id,
+      role: req.user?.role,
+    },
+  });
 }
 
 export async function applyLeave(req, res) {
@@ -78,12 +105,26 @@ export async function applyLeave(req, res) {
       attachment: attachmentPath,
     });
 
+    logAuditEvent("leave.applied", {
+      ...getRequestContext(req),
+      userId: req.user.id,
+      leaveId: leave.id,
+      totalDays: leave.totalDays,
+      status: leave.status,
+    });
+
     return res.status(201).json({
       message: "Leave applied successfully",
       leave,
     });
   } catch (error) {
-    return handleError(res, error, "Failed to apply leave");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to apply leave",
+      "leave.apply.error",
+    );
   }
 }
 
@@ -92,12 +133,25 @@ export async function approveByDean(req, res) {
     const leaveId = parseId(req.params.id, "leave");
     const leave = await approveByDeanService(leaveId, req.user);
 
+    logAuditEvent("leave.approved", {
+      ...getRequestContext(req),
+      deanId: req.user?.id,
+      leaveId: leave.id,
+      applicantId: leave.userId,
+    });
+
     return res.status(200).json({
       message: "Leave approved by dean",
       leave,
     });
   } catch (error) {
-    return handleError(res, error, "Failed to approve leave");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to approve leave",
+      "leave.approve.error",
+    );
   }
 }
 
@@ -110,12 +164,26 @@ export async function rejectByDean(req, res) {
       req.user,
     );
 
+    logAuditEvent("leave.rejected", {
+      ...getRequestContext(req),
+      deanId: req.user?.id,
+      leaveId: leave.id,
+      applicantId: leave.userId,
+      hasReason: Boolean(leave.rejectionReason),
+    });
+
     return res.status(200).json({
       message: "Leave rejected by dean",
       leave,
     });
   } catch (error) {
-    return handleError(res, error, "Failed to reject leave");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to reject leave",
+      "leave.reject.error",
+    );
   }
 }
 
@@ -131,7 +199,13 @@ export async function getMyLeaveHistory(req, res) {
 
     return res.status(200).json({ leaves });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch leave history");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch leave history",
+      "leave.history.error",
+    );
   }
 }
 
@@ -147,7 +221,13 @@ export async function getMyLeaveBalance(req, res) {
 
     return res.status(200).json({ balance });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch leave balance");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch leave balance",
+      "leave.balance.error",
+    );
   }
 }
 
@@ -162,7 +242,13 @@ export async function getMonthlyLeaveSummary(req, res) {
     const summary = await getMonthlyLeaveSummaryService(req.user.id);
     return res.status(200).json({ summary });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch monthly leave summary");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch monthly leave summary",
+      "leave.monthly_summary.error",
+    );
   }
 }
 
@@ -178,7 +264,13 @@ export async function getPendingLeavesForDean(req, res) {
 
     return res.status(200).json({ leaves });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch pending leaves");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch pending leaves",
+      "leave.pending_dean.error",
+    );
   }
 }
 
@@ -193,7 +285,13 @@ export async function getPendingLeaves(req, res) {
     const leaves = await getPendingLeavesService(req.user);
     return res.status(200).json({ leaves });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch pending leaves");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch pending leaves",
+      "leave.pending.error",
+    );
   }
 }
 
@@ -208,7 +306,13 @@ export async function getDeanDashboardOverview(req, res) {
     const overview = await getDeanDashboardOverviewService(req.user);
     return res.status(200).json(overview);
   } catch (error) {
-    return handleError(res, error, "Failed to fetch dean dashboard overview");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch dean dashboard overview",
+      "leave.dean_overview.error",
+    );
   }
 }
 
@@ -225,6 +329,12 @@ export async function getLeaveUserDetailsForDean(req, res) {
 
     return res.status(200).json(details);
   } catch (error) {
-    return handleError(res, error, "Failed to fetch leave user details");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch leave user details",
+      "leave.dean_user_details.error",
+    );
   }
 }

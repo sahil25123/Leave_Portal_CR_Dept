@@ -5,6 +5,8 @@ import {
   syncHolidays,
   updateHolidayById,
 } from "../services/holiday.service.js";
+import { getRequestContext } from "../utils/auditLogger.js";
+import { sendSafeErrorResponse } from "../utils/errorResponder.js";
 
 function parseId(rawId, label) {
   const parsedId = Number(rawId);
@@ -16,25 +18,16 @@ function parseId(rawId, label) {
   return parsedId;
 }
 
-function getStatusCode(message) {
-  if (message === "Unauthorized") {
-    return 401;
-  }
-
-  if (message === "Forbidden") {
-    return 403;
-  }
-
-  if (message.includes("not found") || message.endsWith("not found")) {
-    return 404;
-  }
-
-  return 400;
-}
-
-function handleError(res, error, fallbackMessage) {
-  const message = error?.message || fallbackMessage;
-  return res.status(getStatusCode(message)).json({ message });
+function handleError(req, res, error, fallbackMessage, logEvent) {
+  return sendSafeErrorResponse(res, error, {
+    fallbackMessage,
+    logEvent,
+    logMeta: {
+      ...getRequestContext(req),
+      userId: req.user?.id,
+      role: req.user?.role,
+    },
+  });
 }
 
 export async function getHolidays(req, res) {
@@ -42,7 +35,13 @@ export async function getHolidays(req, res) {
     const holidays = await getAllHolidays();
     return res.status(200).json({ holidays });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch holidays");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch holidays",
+      "holiday.fetch.error",
+    );
   }
 }
 
@@ -56,7 +55,13 @@ export async function syncHolidayCalendar(req, res) {
       ...result,
     });
   } catch (error) {
-    return handleError(res, error, "Failed to sync holidays");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to sync holidays",
+      "holiday.sync.error",
+    );
   }
 }
 
@@ -68,7 +73,13 @@ export async function createHoliday(req, res) {
       holiday,
     });
   } catch (error) {
-    return handleError(res, error, "Failed to create holiday");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to create holiday",
+      "holiday.create.error",
+    );
   }
 }
 
@@ -82,7 +93,13 @@ export async function updateHoliday(req, res) {
       holiday,
     });
   } catch (error) {
-    return handleError(res, error, "Failed to update holiday");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to update holiday",
+      "holiday.update.error",
+    );
   }
 }
 
@@ -95,6 +112,12 @@ export async function deleteHoliday(req, res) {
       message: "Holiday deleted",
     });
   } catch (error) {
-    return handleError(res, error, "Failed to delete holiday");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to delete holiday",
+      "holiday.delete.error",
+    );
   }
 }

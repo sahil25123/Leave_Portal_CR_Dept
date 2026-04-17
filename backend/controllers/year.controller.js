@@ -4,6 +4,8 @@ import {
   getActiveYearOrNull as getActiveYearOrNullService,
   listLeaveYears as listLeaveYearsService,
 } from "../services/year.service.js";
+import { getRequestContext } from "../utils/auditLogger.js";
+import { sendSafeErrorResponse } from "../utils/errorResponder.js";
 
 function parseYearId(rawId) {
   const parsedYearId = Number(rawId);
@@ -15,25 +17,16 @@ function parseYearId(rawId) {
   return parsedYearId;
 }
 
-function getStatusCode(message) {
-  if (message === "Unauthorized") {
-    return 401;
-  }
-
-  if (message === "Forbidden") {
-    return 403;
-  }
-
-  if (message.endsWith("not found") || message.includes("not found")) {
-    return 404;
-  }
-
-  return 400;
-}
-
-function handleError(res, error, fallbackMessage) {
-  const message = error?.message || fallbackMessage;
-  return res.status(getStatusCode(message)).json({ message });
+function handleError(req, res, error, fallbackMessage, logEvent) {
+  return sendSafeErrorResponse(res, error, {
+    fallbackMessage,
+    logEvent,
+    logMeta: {
+      ...getRequestContext(req),
+      userId: req.user?.id,
+      role: req.user?.role,
+    },
+  });
 }
 
 export async function getLeaveYears(req, res) {
@@ -41,7 +34,13 @@ export async function getLeaveYears(req, res) {
     const years = await listLeaveYearsService(req.user);
     return res.status(200).json({ years });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch leave years");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch leave years",
+      "year.fetch.error",
+    );
   }
 }
 
@@ -50,7 +49,13 @@ export async function getActiveLeaveYear(req, res) {
     const activeYear = await getActiveYearOrNullService();
     return res.status(200).json({ activeYear });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch active leave year");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to fetch active leave year",
+      "year.active.error",
+    );
   }
 }
 
@@ -62,7 +67,13 @@ export async function createLeaveYear(req, res) {
       year,
     });
   } catch (error) {
-    return handleError(res, error, "Failed to create leave year");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to create leave year",
+      "year.create.error",
+    );
   }
 }
 
@@ -76,6 +87,12 @@ export async function activateLeaveYear(req, res) {
       year,
     });
   } catch (error) {
-    return handleError(res, error, "Failed to activate leave year");
+    return handleError(
+      req,
+      res,
+      error,
+      "Failed to activate leave year",
+      "year.activate.error",
+    );
   }
 }

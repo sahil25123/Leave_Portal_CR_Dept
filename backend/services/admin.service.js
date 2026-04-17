@@ -5,6 +5,7 @@ import {
   getActiveYearOrNull,
 } from "./year.service.js";
 import { validateStrongPassword } from "../utils/passwordValidator.js";
+import { assertValidEmail, normalizeEmail } from "../utils/inputValidator.js";
 
 const ALLOWED_ROLES = new Set(["staff", "dean", "admin"]);
 const SALT_ROUNDS = 10;
@@ -50,16 +51,16 @@ export async function createUser(currentUser, payload) {
   assertAdmin(currentUser);
 
   const name = String(payload?.name || "").trim();
-  const email = String(payload?.email || "")
-    .trim()
-    .toLowerCase();
-  const password = String(payload?.password || "").trim();
+  const email = normalizeEmail(payload?.email);
+  const password = String(payload?.password || "");
   const designation = String(payload?.designation || "").trim();
   const role = parseUserRole(payload?.role);
 
   if (!name || !email || !password || !designation) {
     throw new Error("name, email, password, role and designation are required");
   }
+
+  assertValidEmail(email, "Invalid email");
 
   validateStrongPassword(password);
 
