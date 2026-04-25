@@ -163,12 +163,16 @@ function DeanDashboard() {
 
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <h3 className="mb-4 text-lg font-semibold text-slate-900">
-              Top Users
+              Monthly Leave Usage
             </h3>
+            <p className="mb-3 text-sm text-slate-500">
+              Staff with highest approved usage in{" "}
+              {overview?.month || "this month"}.
+            </p>
 
             {topUsers.length === 0 ? (
               <p className="text-sm text-slate-500">
-                No approved usage in this month.
+                No approved leave usage in this month.
               </p>
             ) : (
               <div className="space-y-2">

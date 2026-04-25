@@ -21,21 +21,6 @@ const NOTIFICATION_TYPE = {
   leaveApproved: NotificationType?.leave_approved || "final_decision",
   leaveRejected: NotificationType?.leave_rejected || "final_decision",
 };
-const EPSILON = 1e-9;
-
-function formatLimitValue(value) {
-  const numericValue = Number(value);
-
-  if (!Number.isFinite(numericValue)) {
-    return String(value);
-  }
-
-  if (Number.isInteger(numericValue)) {
-    return String(numericValue);
-  }
-
-  return String(Number(numericValue.toFixed(2)));
-}
 
 function parseAndValidateDates(fromDate, toDate) {
   const parsedFromDate = toDateOnly(fromDate);
@@ -343,85 +328,6 @@ export async function applyLeave(userId, data) {
     isHalfDay: isHalfDayLeave,
     halfDayType: normalizedHalfDayType,
   });
-
-  const monthWindowStart = new Date(
-    Date.UTC(parsedFromDate.getUTCFullYear(), parsedFromDate.getUTCMonth(), 1),
-  );
-  const monthWindowEnd = new Date(
-    Date.UTC(parsedToDate.getUTCFullYear(), parsedToDate.getUTCMonth() + 1, 0),
-  );
-
-  const monthlyLeaves = await prisma.leave.findMany({
-    where: {
-      userId,
-      yearId: activeYear.id,
-      status: {
-        not: "rejected",
-      },
-      fromDate: {
-        lte: monthWindowEnd,
-      },
-      toDate: {
-        gte: monthWindowStart,
-      },
-    },
-    select: {
-      id: true,
-      fromDate: true,
-      toDate: true,
-      isHalfDay: true,
-      halfDayType: true,
-    },
-  });
-
-  const holidaySet = buildHolidayDateSet(holidays);
-  const existingUsageByMonth = new Map();
-
-  for (const leave of monthlyLeaves) {
-    const leaveFromDate = toDateOnly(leave.fromDate);
-    const leaveToDate = toDateOnly(leave.toDate);
-
-    if (!leaveFromDate || !leaveToDate) {
-      continue;
-    }
-
-    const usageByMonth = calculateWorkingDaysByMonthWithHolidaySet(
-      leaveFromDate,
-      leaveToDate,
-      holidaySet,
-      leave.isHalfDay === true,
-    );
-
-    for (const [monthKey, monthDays] of usageByMonth.entries()) {
-      const existingDays = existingUsageByMonth.get(monthKey) || 0;
-      existingUsageByMonth.set(monthKey, existingDays + monthDays);
-    }
-  }
-
-  const requestedUsageByMonth = calculateWorkingDaysByMonthWithHolidaySet(
-    parsedFromDate,
-    parsedToDate,
-    holidaySet,
-    isHalfDayLeave,
-  );
-
-  const monthlyLimit = Number(activeYear.monthlyLimit);
-
-  for (const [monthKey, requestedDays] of requestedUsageByMonth.entries()) {
-    const currentDays = Number(existingUsageByMonth.get(monthKey) || 0);
-
-    if (currentDays >= monthlyLimit - EPSILON) {
-      throw new Error(
-        "Monthly quota exhausted (" + formatLimitValue(monthlyLimit) + " days)",
-      );
-    }
-
-    if (currentDays + requestedDays > monthlyLimit + EPSILON) {
-      throw new Error(
-        "Monthly limit exceeded (" + formatLimitValue(monthlyLimit) + " days)",
-      );
-    }
-  }
 
   const leaveBalance = await ensureLeaveBalanceForYear(userId, activeYear);
 
@@ -806,7 +712,6 @@ export async function getMonthlyLeaveSummary(userId) {
         monthKey,
         month: monthFormatter.format(new Date(Date.UTC(year, month - 1, 1))),
         used: Number(totalDays.toFixed(2)),
-        limit: Number(activeYear.monthlyLimit),
       };
     });
 }
@@ -1155,7 +1060,6 @@ export async function getLeaveUserDetailsForDean(userId, actor) {
       approvedDays: Number(monthlyApproved.toFixed(2)),
       pendingDays: Number(monthlyPending.toFixed(2)),
       requestCount: monthlyRequestCount,
-      limit: Number(activeYear.monthlyLimit),
     },
     activeYear: {
       id: activeYear.id,

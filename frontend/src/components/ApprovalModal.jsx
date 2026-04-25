@@ -212,11 +212,6 @@ function ApprovalModal({
                   <p className="text-sm text-slate-700">
                     Pending: {monthlyUsage?.pendingDays ?? 0} day(s)
                   </p>
-                  <p className="text-xs text-slate-500">
-                    Limit:{" "}
-                    {monthlyUsage?.limit ?? activeYear?.monthlyLimit ?? 0}{" "}
-                    day(s)
-                  </p>
                 </article>
               </section>
 

@@ -122,14 +122,14 @@ function StaffDashboard() {
               <div className="grid gap-2 md:grid-cols-2">
                 {monthlySummary.map((entry) => (
                   <article
-                    key={entry.monthKey || entry.month + "-" + entry.limit}
+                    key={entry.monthKey || entry.month}
                     className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
                   >
                     <p className="text-sm font-semibold text-slate-900">
                       {entry.month}
                     </p>
                     <p className="text-sm text-slate-700">
-                      {entry.used} / {entry.limit}
+                      {entry.month} usage: {entry.used} day(s)
                     </p>
                   </article>
                 ))}

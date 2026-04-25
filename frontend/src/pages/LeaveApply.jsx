@@ -15,7 +15,6 @@ import {
 } from "../services/leave.service";
 import {
   calculateWorkingDays,
-  checkMonthlyLimitWarning,
   checkOverlapWarning,
   isNonWorkingDate,
   isPastDate,
@@ -307,13 +306,7 @@ function LeaveApply() {
     );
   }, [monthlySummary, selectedMonthKey, selectedMonthLabel]);
 
-  const monthlyLimit = Number(
-    balance?.monthlyLimit || selectedMonthUsage?.limit || 2.5,
-  );
   const currentMonthUsed = Number(selectedMonthUsage?.used || 0);
-  const projectedMonthUsage = Number(
-    (currentMonthUsed + (calculatedDays || 0)).toFixed(2),
-  );
   const activeYearHistory = useMemo(() => {
     if (!balance?.yearId) {
       return history;
@@ -410,19 +403,6 @@ function LeaveApply() {
       warnings.push(overlapWarning);
     }
 
-    const monthlyWarning = checkMonthlyLimitWarning({
-      leaves: activeYearHistory,
-      fromDate,
-      toDate,
-      holidayDateSet,
-      isHalfDay: form.isHalfDay,
-      monthlyLimit,
-    });
-
-    if (monthlyWarning) {
-      warnings.push(monthlyWarning);
-    }
-
     return {
       errors: [...new Set(errors)],
       warnings: [...new Set(warnings)],
@@ -437,7 +417,6 @@ function LeaveApply() {
     form.toDate,
     fromDate,
     activeYearHistory,
-    monthlyLimit,
     holidayDateSet,
     toDate,
   ]);
@@ -705,15 +684,9 @@ function LeaveApply() {
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <span className="font-semibold text-slate-900">
-              {selectedMonthLabel} Usage:
+              {selectedMonthLabel || "Current Month"} usage:
             </span>{" "}
-            {currentMonthUsed} / {monthlyLimit}
-            {form.fromDate && calculatedDays > 0 ? (
-              <p className="mt-1 text-xs text-slate-600">
-                Projected after this request: {projectedMonthUsage} /{" "}
-                {monthlyLimit}
-              </p>
-            ) : null}
+            {currentMonthUsed} day(s)
           </div>
 
           <div>

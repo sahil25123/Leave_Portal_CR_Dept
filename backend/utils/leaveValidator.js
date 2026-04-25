@@ -1,4 +1,3 @@
-const DEFAULT_MONTHLY_LIMIT = 2.5;
 const DEFAULT_YEARLY_LIMIT = 30;
 const EPSILON = 1e-9;
 
@@ -176,56 +175,6 @@ export function checkOverlap({
     }
 
     throw new Error("Leave overlaps with existing leave");
-  }
-}
-
-export function validateMonthlyLimit({
-  existingLeaves,
-  newFromDate,
-  newToDate,
-  holidays,
-  isHalfDay,
-  monthlyLimit = DEFAULT_MONTHLY_LIMIT,
-}) {
-  const holidaySet = buildHolidayDateSet(holidays);
-  const existingUsageByMonth = new Map();
-
-  for (const leave of existingLeaves || []) {
-    const fromDate = toDateOnly(leave.fromDate);
-    const toDate = toDateOnly(leave.toDate);
-
-    if (!fromDate || !toDate) {
-      continue;
-    }
-
-    const leaveUsageByMonth = calculateWorkingDaysByMonth(
-      fromDate,
-      toDate,
-      holidaySet,
-      leave.isHalfDay === true,
-    );
-
-    for (const [monthKey, leaveDays] of leaveUsageByMonth.entries()) {
-      const currentDays = existingUsageByMonth.get(monthKey) || 0;
-      existingUsageByMonth.set(monthKey, currentDays + leaveDays);
-    }
-  }
-
-  const requestedUsageByMonth = calculateWorkingDaysByMonth(
-    newFromDate,
-    newToDate,
-    holidaySet,
-    isHalfDay,
-  );
-
-  for (const [monthKey, requestedDays] of requestedUsageByMonth.entries()) {
-    const currentDays = existingUsageByMonth.get(monthKey) || 0;
-
-    if (currentDays + requestedDays > Number(monthlyLimit) + EPSILON) {
-      throw new Error(
-        "Monthly limit exceeded (" + formatLimitValue(monthlyLimit) + " days)",
-      );
-    }
   }
 }
 
