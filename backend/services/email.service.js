@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
 import {
+  buildAdminPasswordResetTemplate,
   buildLeaveAppliedForApplicantTemplate,
   buildLeaveAppliedForDeanTemplate,
   buildLeaveApprovedTemplate,
@@ -265,6 +266,72 @@ export async function sendLeaveRejectedEmail({
   } catch (error) {
     console.error(
       "[email] Unexpected error in sendLeaveRejectedEmail:",
+      error?.message || error,
+    );
+  }
+}
+
+export async function sendLeaveCancelledEmail({
+  dean,
+  applicant,
+  leave,
+  cancelledByMessage,
+}) {
+  try {
+    const attachmentUrl = resolveAttachmentPublicUrl(leave?.attachment);
+    const attachments = buildMailAttachments(leave?.attachment);
+
+    const applicantTemplate = buildLeaveCancelledTemplate({
+      recipientName: applicant?.name || "Staff Member",
+      leave,
+      portalUrl: resolvePortalUrl("/dashboard"),
+      cancelledByMessage,
+      attachmentUrl,
+    });
+
+    await Promise.allSettled([
+      sendMailSafe(
+        {
+          to: applicant?.email,
+          ...applicantTemplate,
+          attachments,
+        },
+        "leave cancelled notification to applicant",
+      ),
+      sendMailSafe(
+        {
+          to: dean?.email,
+          ...applicantTemplate,
+          attachments,
+        },
+        "leave cancelled notification to dean",
+      ),
+    ]);
+  } catch (error) {
+    console.error(
+      "[email] Unexpected error in sendLeaveCancelledEmail:",
+      error?.message || error,
+    );
+  }
+}
+
+export async function sendAdminPasswordResetEmail({ user }) {
+  try {
+    const template = buildAdminPasswordResetTemplate({
+      recipientName: user?.name || "Staff Member",
+      portalUrl: resolvePortalUrl("/login"),
+    });
+
+    await sendMailSafe(
+      {
+        to: user?.email,
+        ...template,
+      },
+      "admin password reset notification",
+    );
+  } catch (error) {
+    console.error(
+      "[email] Unexpected error in sendAdminPasswordResetEmail:",
       error?.message || error,
     );
   }

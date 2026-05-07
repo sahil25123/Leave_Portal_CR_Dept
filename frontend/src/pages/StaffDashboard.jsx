@@ -4,6 +4,7 @@ import AppShell from "../components/AppShell";
 import ErrorAlert from "../components/ErrorAlert";
 import LoadingState from "../components/LoadingState";
 import {
+  cancelLeaveRequest,
   getMonthlyLeaveSummaryRequest,
   getMyLeaveBalanceRequest,
   getMyLeaveHistoryRequest,
@@ -16,6 +17,7 @@ function StatusBadge({ status }) {
     pending_dean: "bg-amber-100 text-amber-700",
     approved: "bg-green-100 text-green-700",
     rejected: "bg-red-100 text-red-700",
+    cancelled: "bg-slate-100 text-slate-700",
   };
 
   return (
@@ -36,6 +38,8 @@ function StaffDashboard() {
   const [monthlySummary, setMonthlySummary] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [cancellingId, setCancellingId] = useState(null);
+  const [cancelError, setCancelError] = useState("");
 
   useEffect(() => {
     async function loadStaffDashboard() {
@@ -63,12 +67,45 @@ function StaffDashboard() {
     loadStaffDashboard();
   }, []);
 
+  function canCancelLeave(leave) {
+    if (!leave) return false;
+    if (leave.status === "pending_dean") return true;
+    if (leave.status === "approved") {
+      const fromDate = new Date(leave.fromDate);
+      const today = new Date();
+      return fromDate > today;
+    }
+    return false;
+  }
+
+  async function handleCancelLeave(leaveId) {
+    if (!window.confirm("Are you sure you want to cancel this leave?")) {
+      return;
+    }
+
+    setCancellingId(leaveId);
+    setCancelError("");
+
+    try {
+      await cancelLeaveRequest(leaveId);
+      setHistory((prev) =>
+        prev.map((leave) =>
+          leave.id === leaveId ? { ...leave, status: "cancelled" } : leave,
+        ),
+      );
+    } catch (err) {
+      setCancelError(getApiErrorMessage(err, "Failed to cancel leave"));
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   return (
     <AppShell
       title="Staff Dashboard"
       subtitle="Track leave balance and request status in one place."
     >
-      <ErrorAlert message={error} />
+      <ErrorAlert message={error || cancelError} />
 
       {isLoading ? <LoadingState label="Loading your dashboard..." /> : null}
 
@@ -164,6 +201,7 @@ function StaffDashboard() {
                     <th className="py-2">Days</th>
                     <th className="py-2">Reason</th>
                     <th className="py-2">Status</th>
+                    <th className="py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -180,6 +218,21 @@ function StaffDashboard() {
                       <td className="py-3 pr-3 max-w-xs">{leave.reason}</td>
                       <td className="py-3">
                         <StatusBadge status={leave.status} />
+                      </td>
+                      <td className="py-3">
+                        {canCancelLeave(leave) ? (
+                          <button
+                            onClick={() => handleCancelLeave(leave.id)}
+                            disabled={cancellingId === leave.id}
+                            className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                          >
+                            {cancellingId === leave.id
+                              ? "Cancelling..."
+                              : "Cancel"}
+                          </button>
+                        ) : (
+                          <span className="text-sm text-slate-400">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

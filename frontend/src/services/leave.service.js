@@ -68,6 +68,11 @@ export async function rejectByDeanRequest(leaveId, reason) {
   return data.leave;
 }
 
+export async function cancelLeaveRequest(leaveId) {
+  const { data } = await api.post("/leave/cancel/" + leaveId);
+  return data.leave;
+}
+
 export function resolveUploadUrl(filePath) {
   if (!filePath) {
     return "";

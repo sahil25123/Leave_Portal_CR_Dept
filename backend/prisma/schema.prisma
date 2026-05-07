@@ -21,6 +21,7 @@ enum LeaveStatus {
   pending_dean
   approved
   rejected
+  cancelled
 }
 
 enum HalfDayType {

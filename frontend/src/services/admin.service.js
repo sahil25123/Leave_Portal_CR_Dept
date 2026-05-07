@@ -15,6 +15,14 @@ export async function updateUserRequest(userId, payload) {
   return data.user;
 }
 
+export async function resetUserPasswordRequest(userId, payload) {
+  const { data } = await api.put(
+    "/admin/users/" + userId + "/reset-password",
+    payload,
+  );
+  return data;
+}
+
 export async function getHolidaysRequest() {
   const { data } = await api.get("/holidays");
   return data.holidays || [];

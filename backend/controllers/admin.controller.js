@@ -1,6 +1,7 @@
 import {
   createUser as createUserService,
   getAllUsers as getAllUsersService,
+  resetUserPassword as resetUserPasswordService,
   updateUser as updateUserService,
 } from "../services/admin.service.js";
 import { getAllLeavesForAdmin as getAllLeavesForAdminService } from "../services/leave.service.js";
@@ -63,6 +64,19 @@ export async function updateUser(req, res) {
     return res.status(200).json({ message: "User updated", user });
   } catch (error) {
     return handleError(res, error, "Failed to update user");
+  }
+}
+
+export async function resetUserPassword(req, res) {
+  try {
+    const userId = parseId(req.params.id, "user");
+    await resetUserPasswordService(req.user, userId, req.body);
+
+    return res.status(200).json({
+      message: "Password reset successfully",
+    });
+  } catch (error) {
+    return handleError(res, error, "Failed to reset password");
   }
 }
 

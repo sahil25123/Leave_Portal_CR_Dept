@@ -684,9 +684,9 @@ function LeaveApply() {
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <span className="font-semibold text-slate-900">
-              {selectedMonthLabel || "Current Month"} usage:
+              {selectedMonthLabel || "Current Month"} Usage:
             </span>{" "}
-            {currentMonthUsed} day(s)
+            {currentMonthUsed} {currentMonthUsed === 1 ? "day" : "days"}
           </div>
 
           <div>

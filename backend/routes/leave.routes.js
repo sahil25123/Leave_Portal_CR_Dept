@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   applyLeave,
   approveByDean,
+  cancelLeave,
   getDeanDashboardOverview,
   getLeaveUserDetailsForDean,
   getMonthlyLeaveSummary,
@@ -52,5 +53,6 @@ router.post(
   authorizeRoles("dean"),
   rejectByDean,
 );
+router.post("/cancel/:id", authenticate, cancelLeave);
 
 export default router;

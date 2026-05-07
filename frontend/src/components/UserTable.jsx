@@ -1,4 +1,4 @@
-function UserTable({ users, onEdit }) {
+function UserTable({ users, onEdit, onResetPassword }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="min-w-full text-left text-sm">
@@ -21,13 +21,22 @@ function UserTable({ users, onEdit }) {
               <td className="px-4 py-3 text-slate-700">{user.role}</td>
               <td className="px-4 py-3 text-slate-700">{user.designation}</td>
               <td className="px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => onEdit(user)}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Edit
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(user)}
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onResetPassword(user)}
+                    className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                  >
+                    Reset Password
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

@@ -11,6 +11,7 @@ import {
   sendLeaveApplicationSubmittedEmails,
   sendLeaveApprovedEmail,
   sendLeaveRejectedEmail,
+  sendLeaveCancelledEmail,
 } from "./email.service.js";
 import { ensureLeaveBalanceForYear, getActiveYear } from "./year.service.js";
 
@@ -20,6 +21,7 @@ const NOTIFICATION_TYPE = {
   leaveApplied: NotificationType?.leave_applied || "leave_applied",
   leaveApproved: NotificationType?.leave_approved || "final_decision",
   leaveRejected: NotificationType?.leave_rejected || "final_decision",
+  leaveCancelled: NotificationType?.leave_cancelled || "final_decision",
 };
 
 function parseAndValidateDates(fromDate, toDate) {
@@ -1102,4 +1104,115 @@ export async function getAllLeavesForAdmin(user) {
       },
     },
   });
+}
+
+export async function cancelLeave(leaveId, user) {
+  const leave = await getLeaveWithApplicant(leaveId);
+
+  if (!leave) {
+    throw new Error("Leave not found");
+  }
+
+  if (leave.userId !== user.id) {
+    throw new Error("Forbidden");
+  }
+
+  const now = new Date();
+  const fromDate = toDateOnly(leave.fromDate);
+
+  const isPending = leave.status === "pending_dean";
+  const isApprovedFuture =
+    leave.status === "approved" && fromDate && fromDate > toDateOnly(now);
+
+  if (!isPending && !isApprovedFuture) {
+    throw new Error("Leave cannot be cancelled in its current state");
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    if (leave.status === "approved") {
+      const leaveBalance = await tx.leaveBalance.findUnique({
+        where: {
+          userId_yearId: {
+            userId: leave.userId,
+            yearId: leave.yearId,
+          },
+        },
+        select: {
+          id: true,
+          used: true,
+          remaining: true,
+        },
+      });
+
+      if (!leaveBalance) {
+        throw new Error("Leave balance not found for this year");
+      }
+
+      await tx.leaveBalance.update({
+        where: { id: leaveBalance.id },
+        data: {
+          used: {
+            decrement: leave.totalDays,
+          },
+          remaining: {
+            increment: leave.totalDays,
+          },
+        },
+      });
+    }
+
+    const updatedLeave = await tx.leave.update({
+      where: { id: leave.id },
+      data: {
+        status: "cancelled",
+      },
+    });
+
+    await tx.notification.create({
+      data: {
+        userId: leave.userId,
+        title: "Leave Cancelled",
+        message: "Your leave has been cancelled",
+        type: NOTIFICATION_TYPE.leaveCancelled,
+        leaveId: leave.id,
+      },
+    });
+
+    const dean = await tx.user.findFirst({
+      where: { role: "dean" },
+      select: { id: true, name: true, email: true },
+    });
+
+    if (dean) {
+      await tx.notification.create({
+        data: {
+          userId: dean.id,
+          title: "Leave Cancelled",
+          message: "A leave request has been cancelled",
+          type: NOTIFICATION_TYPE.leaveCancelled,
+          leaveId: leave.id,
+        },
+      });
+    }
+
+    return { updatedLeave, dean };
+  });
+
+  try {
+    await sendLeaveCancelledEmail({
+      dean: result.dean
+        ? { name: result.dean.name, email: result.dean.email }
+        : null,
+      applicant: { name: leave.user.name, email: leave.user.email },
+      leave: { ...leave, ...result.updatedLeave, status: "cancelled" },
+      cancelledByMessage: "Cancelled by applicant",
+    });
+  } catch (error) {
+    console.error(
+      "[email] Leave cancelled email dispatch failed:",
+      error?.message || error,
+    );
+  }
+
+  return result.updatedLeave;
 }

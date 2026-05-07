@@ -5,6 +5,7 @@ import {
   getActiveYearOrNull,
 } from "./year.service.js";
 import { validateStrongPassword } from "../utils/passwordValidator.js";
+import { sendAdminPasswordResetEmail } from "./email.service.js";
 
 const ALLOWED_ROLES = new Set(["staff", "dean", "admin"]);
 const SALT_ROUNDS = 10;
@@ -145,4 +146,64 @@ export async function updateUser(currentUser, userId, payload) {
   });
 
   return updatedUser;
+}
+
+export async function resetUserPassword(currentUser, userId, payload) {
+  assertAdmin(currentUser);
+
+  const newPassword = String(payload?.newPassword || "").trim();
+  const confirmPassword = String(payload?.confirmPassword || "").trim();
+
+  if (!newPassword || !confirmPassword) {
+    throw new Error("newPassword and confirmPassword are required");
+  }
+
+  if (newPassword !== confirmPassword) {
+    throw new Error("New password and confirm password do not match");
+  }
+
+  validateStrongPassword(newPassword);
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      designation: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      password: hashedPassword,
+      mustChangePassword: true,
+    },
+  });
+
+  try {
+    await sendAdminPasswordResetEmail({ user });
+  } catch (error) {
+    console.error(
+      "[email] Admin password reset notification failed:",
+      error?.message || error,
+    );
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    designation: user.designation,
+    mustChangePassword: true,
+  };
 }

@@ -3,6 +3,7 @@ import {
   createUser,
   getAllLeavesForAdmin,
   getUsers,
+  resetUserPassword,
   updateUser,
 } from "../controllers/admin.controller.js";
 import {
@@ -23,6 +24,12 @@ router.put(
   authenticate,
   authorizeRoles("admin"),
   updateUser,
+);
+router.put(
+  "/admin/users/:id/reset-password",
+  authenticate,
+  authorizeRoles("admin"),
+  resetUserPassword,
 );
 
 router.get(

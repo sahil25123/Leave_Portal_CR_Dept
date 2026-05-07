@@ -1,6 +1,7 @@
 import {
   applyLeave as applyLeaveService,
   approveByDean as approveByDeanService,
+  cancelLeave as cancelLeaveService,
   getDeanDashboardOverview as getDeanDashboardOverviewService,
   getLeaveUserDetailsForDean as getLeaveUserDetailsForDeanService,
   getMonthlyLeaveSummary as getMonthlyLeaveSummaryService,
@@ -226,5 +227,25 @@ export async function getLeaveUserDetailsForDean(req, res) {
     return res.status(200).json(details);
   } catch (error) {
     return handleError(res, error, "Failed to fetch leave user details");
+  }
+}
+
+export async function cancelLeave(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const leaveId = parseId(req.params.id, "leave");
+    const leave = await cancelLeaveService(leaveId, req.user);
+
+    return res.status(200).json({
+      message: "Leave cancelled successfully",
+      leave,
+    });
+  } catch (error) {
+    return handleError(res, error, "Failed to cancel leave");
   }
 }
