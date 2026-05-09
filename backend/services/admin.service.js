@@ -4,8 +4,15 @@ import {
   ensureLeaveBalanceForYear,
   getActiveYearOrNull,
 } from "./year.service.js";
+import {
+  normalizeEmail,
+  validateEmail,
+} from "../utils/emailValidator.js";
 import { validateStrongPassword } from "../utils/passwordValidator.js";
-import { sendAdminPasswordResetEmail } from "./email.service.js";
+import {
+  sendAdminEmailUpdatedNotification,
+  sendAdminPasswordResetEmail,
+} from "./email.service.js";
 
 const ALLOWED_ROLES = new Set(["staff", "dean", "admin"]);
 const SALT_ROUNDS = 10;
@@ -51,9 +58,7 @@ export async function createUser(currentUser, payload) {
   assertAdmin(currentUser);
 
   const name = String(payload?.name || "").trim();
-  const email = String(payload?.email || "")
-    .trim()
-    .toLowerCase();
+  const email = normalizeEmail(payload?.email);
   const password = String(payload?.password || "").trim();
   const designation = String(payload?.designation || "").trim();
   const role = parseUserRole(payload?.role);
@@ -62,6 +67,7 @@ export async function createUser(currentUser, payload) {
     throw new Error("name, email, password, role and designation are required");
   }
 
+  validateEmail(email);
   validateStrongPassword(password);
 
   const existingUser = await prisma.user.findUnique({
@@ -70,7 +76,7 @@ export async function createUser(currentUser, payload) {
   });
 
   if (existingUser) {
-    throw new Error("Email already exists");
+    throw new Error("Email already in use");
   }
 
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
@@ -108,12 +114,15 @@ export async function updateUser(currentUser, userId, payload) {
   assertAdmin(currentUser);
 
   const name = String(payload?.name || "").trim();
+  const email = normalizeEmail(payload?.email);
   const designation = String(payload?.designation || "").trim();
   const role = parseUserRole(payload?.role);
 
-  if (!name || !designation) {
-    throw new Error("name, role and designation are required");
+  if (!name || !designation || !email) {
+    throw new Error("name, email, role and designation are required");
   }
+
+  validateEmail(email);
 
   const existingUser = await prisma.user.findUnique({
     where: { id: userId },
@@ -127,10 +136,24 @@ export async function updateUser(currentUser, userId, payload) {
     throw new Error("User not found");
   }
 
+  const shouldNotifyEmailChange = email !== existingUser.email;
+
+  if (shouldNotifyEmailChange) {
+    const emailOwner = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (emailOwner && emailOwner.id !== userId) {
+      throw new Error("Email already in use");
+    }
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
       name,
+      email,
       role,
       designation,
     },
@@ -144,6 +167,17 @@ export async function updateUser(currentUser, userId, payload) {
       createdAt: true,
     },
   });
+
+  if (shouldNotifyEmailChange) {
+    try {
+      await sendAdminEmailUpdatedNotification({ user: updatedUser });
+    } catch (error) {
+      console.error(
+        "[email] Admin email update notification failed:",
+        error?.message || error,
+      );
+    }
+  }
 
   return updatedUser;
 }

@@ -518,3 +518,24 @@ export function buildAdminPasswordResetTemplate({ recipientName, portalUrl }) {
     }),
   };
 }
+
+export function buildAdminEmailUpdatedTemplate({ recipientName, portalUrl }) {
+  const title = "Your Account Email Was Updated";
+  const intro =
+    "An administrator updated the email address linked to your account. If you did not expect this change, please contact support.";
+
+  return {
+    subject: title,
+    html: buildSimpleEmailLayout({
+      title,
+      intro,
+      recipientName,
+      buttonLabel: "Sign In",
+      buttonUrl: portalUrl,
+    }),
+    text: buildSimpleTextBody({
+      title,
+      intro,
+    }),
+  };
+}

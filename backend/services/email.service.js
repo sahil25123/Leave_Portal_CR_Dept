@@ -2,10 +2,12 @@ import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
 import {
+  buildAdminEmailUpdatedTemplate,
   buildAdminPasswordResetTemplate,
   buildLeaveAppliedForApplicantTemplate,
   buildLeaveAppliedForDeanTemplate,
   buildLeaveApprovedTemplate,
+  buildLeaveCancelledTemplate,
   buildLeaveRejectedTemplate,
 } from "./email.templates.js";
 
@@ -332,6 +334,28 @@ export async function sendAdminPasswordResetEmail({ user }) {
   } catch (error) {
     console.error(
       "[email] Unexpected error in sendAdminPasswordResetEmail:",
+      error?.message || error,
+    );
+  }
+}
+
+export async function sendAdminEmailUpdatedNotification({ user }) {
+  try {
+    const template = buildAdminEmailUpdatedTemplate({
+      recipientName: user?.name || "Staff Member",
+      portalUrl: resolvePortalUrl("/login"),
+    });
+
+    await sendMailSafe(
+      {
+        to: user?.email,
+        ...template,
+      },
+      "admin email update notification",
+    );
+  } catch (error) {
+    console.error(
+      "[email] Unexpected error in sendAdminEmailUpdatedNotification:",
       error?.message || error,
     );
   }
