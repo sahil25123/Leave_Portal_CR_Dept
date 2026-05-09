@@ -4,10 +4,7 @@ import {
   ensureLeaveBalanceForYear,
   getActiveYearOrNull,
 } from "./year.service.js";
-import {
-  normalizeEmail,
-  validateEmail,
-} from "../utils/emailValidator.js";
+import { normalizeEmail, validateEmail } from "../utils/emailValidator.js";
 import { validateStrongPassword } from "../utils/passwordValidator.js";
 import {
   sendAdminEmailUpdatedNotification,

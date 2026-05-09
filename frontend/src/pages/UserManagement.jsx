@@ -12,6 +12,7 @@ import {
   updateUserRequest,
 } from "../services/admin.service";
 import { getApiErrorMessage } from "../services/api";
+import { getEmailValidationMessage } from "../utils/emailValidation";
 import { getPasswordValidationMessage } from "../utils/passwordValidation";
 
 const INITIAL_CREATE_FORM = {
@@ -35,6 +36,7 @@ function UserManagement() {
   const [resetUser, setResetUser] = useState(null);
   const [editForm, setEditForm] = useState({
     name: "",
+    email: "",
     role: "staff",
     designation: "",
   });
@@ -86,6 +88,7 @@ function UserManagement() {
     setEditingUserId(user.id);
     setEditForm({
       name: user.name,
+      email: user.email,
       role: user.role,
       designation: user.designation,
     });
@@ -97,6 +100,7 @@ function UserManagement() {
     setEditingUserId(null);
     setEditForm({
       name: "",
+      email: "",
       role: "staff",
       designation: "",
     });
@@ -119,9 +123,16 @@ function UserManagement() {
   async function handleCreate(event) {
     event.preventDefault();
 
+    const emailValidationMessage = getEmailValidationMessage(createForm.email);
     const passwordValidationMessage = getPasswordValidationMessage(
       createForm.password,
     );
+
+    if (emailValidationMessage) {
+      setError(emailValidationMessage);
+      setSuccess("");
+      return;
+    }
 
     if (passwordValidationMessage) {
       setError(passwordValidationMessage);
@@ -152,6 +163,14 @@ function UserManagement() {
       return;
     }
 
+    const emailValidationMessage = getEmailValidationMessage(editForm.email);
+
+    if (emailValidationMessage) {
+      setError(emailValidationMessage);
+      setSuccess("");
+      return;
+    }
+
     setError("");
     setSuccess("");
     setIsUpdateSubmitting(true);
@@ -163,10 +182,12 @@ function UserManagement() {
           user.id === updatedUser.id ? updatedUser : user,
         ),
       );
-      setSuccess("User updated successfully.");
       cancelEdit();
+      showToast("success", "User updated successfully.");
     } catch (updateError) {
-      setError(getApiErrorMessage(updateError, "Failed to update user"));
+      const message = getApiErrorMessage(updateError, "Failed to update user");
+      setError(message);
+      showToast("error", message);
     } finally {
       setIsUpdateSubmitting(false);
     }

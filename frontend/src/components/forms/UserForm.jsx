@@ -59,24 +59,24 @@ function UserForm({
         </div>
       </div>
 
-      {isCreate ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <label
-              className="mb-1 block text-sm font-medium text-slate-700"
-              htmlFor="create-email"
-            >
-              Email
-            </label>
-            <input
-              id="create-email"
-              type="email"
-              value={values.email}
-              onChange={(event) => onChange("email", event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div>
+          <label
+            className="mb-1 block text-sm font-medium text-slate-700"
+            htmlFor={mode + "-email"}
+          >
+            Email
+          </label>
+          <input
+            id={mode + "-email"}
+            type="email"
+            value={values.email}
+            onChange={(event) => onChange("email", event.target.value)}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
 
+        {isCreate ? (
           <div>
             <PasswordField
               id="create-password"
@@ -94,8 +94,8 @@ function UserForm({
               }
             />
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <div>
         <label
