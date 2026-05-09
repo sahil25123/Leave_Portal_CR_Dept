@@ -55,6 +55,16 @@ function toLeaveYearResponse(leaveYear) {
   };
 }
 
+const LEAVE_YEAR_SELECT = {
+  id: true,
+  name: true,
+  startDate: true,
+  endDate: true,
+  isActive: true,
+  yearlyLimit: true,
+  createdAt: true,
+};
+
 export async function getActiveYear() {
   const activeYear = await prisma.leaveYear.findFirst({
     where: {
@@ -63,6 +73,7 @@ export async function getActiveYear() {
     orderBy: {
       createdAt: "desc",
     },
+    select: LEAVE_YEAR_SELECT,
   });
 
   if (!activeYear) {
@@ -80,6 +91,7 @@ export async function getActiveYearOrNull() {
     orderBy: {
       createdAt: "desc",
     },
+    select: LEAVE_YEAR_SELECT,
   });
 }
 
@@ -88,6 +100,7 @@ export async function listLeaveYears(currentUser) {
 
   const leaveYears = await prisma.leaveYear.findMany({
     orderBy: [{ isActive: "desc" }, { startDate: "desc" }],
+    select: LEAVE_YEAR_SELECT,
   });
 
   return leaveYears.map(toLeaveYearResponse);
@@ -100,6 +113,7 @@ export async function createLeaveYear(currentUser, payload) {
 
   const createdYear = await prisma.leaveYear.create({
     data,
+    select: LEAVE_YEAR_SELECT,
   });
 
   return toLeaveYearResponse(createdYear);
@@ -184,6 +198,9 @@ export async function activateLeaveYear(currentUser, yearId) {
   return prisma.$transaction(async (tx) => {
     const existingYear = await tx.leaveYear.findUnique({
       where: { id: parsedYearId },
+      select: {
+        id: true,
+      },
     });
 
     if (!existingYear) {
@@ -203,6 +220,7 @@ export async function activateLeaveYear(currentUser, yearId) {
       data: {
         isActive: true,
       },
+      select: LEAVE_YEAR_SELECT,
     });
 
     const users = await tx.user.findMany({
