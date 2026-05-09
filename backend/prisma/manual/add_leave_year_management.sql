@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS `leaveyear` (
   `startDate` DATETIME(3) NOT NULL,
   `endDate` DATETIME(3) NOT NULL,
   `isActive` TINYINT(1) NOT NULL DEFAULT 0,
-  `monthlyLimit` DOUBLE NOT NULL DEFAULT 2.5,
   `yearlyLimit` DOUBLE NOT NULL DEFAULT 30,
   `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
@@ -14,13 +13,12 @@ CREATE TABLE IF NOT EXISTS `leaveyear` (
   KEY `LeaveYear_isActive_idx` (`isActive`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `leaveyear` (`name`, `startDate`, `endDate`, `isActive`, `monthlyLimit`, `yearlyLimit`, `createdAt`)
+INSERT INTO `leaveyear` (`name`, `startDate`, `endDate`, `isActive`, `yearlyLimit`, `createdAt`)
 SELECT
   `years`.`year_name`,
   STR_TO_DATE(CONCAT(`years`.`year_name`, '-01-01'), '%Y-%m-%d'),
   STR_TO_DATE(CONCAT(`years`.`year_name`, '-12-31'), '%Y-%m-%d'),
   0,
-  2.5,
   30,
   CURRENT_TIMESTAMP(3)
 FROM (
@@ -36,13 +34,12 @@ WHERE
     WHERE CAST(ly.`name` AS UNSIGNED) = CAST(`years`.`year_name` AS UNSIGNED)
   );
 
-INSERT INTO `leaveyear` (`name`, `startDate`, `endDate`, `isActive`, `monthlyLimit`, `yearlyLimit`, `createdAt`)
+INSERT INTO `leaveyear` (`name`, `startDate`, `endDate`, `isActive`, `yearlyLimit`, `createdAt`)
 SELECT
   CAST(YEAR(UTC_DATE()) AS CHAR),
   STR_TO_DATE(CONCAT(YEAR(UTC_DATE()), '-01-01'), '%Y-%m-%d'),
   STR_TO_DATE(CONCAT(YEAR(UTC_DATE()), '-12-31'), '%Y-%m-%d'),
   0,
-  2.5,
   30,
   CURRENT_TIMESTAMP(3)
 WHERE NOT EXISTS (

@@ -57,7 +57,6 @@ model LeaveYear {
   startDate    DateTime
   endDate      DateTime
   isActive     Boolean       @default(false)
-  monthlyLimit Float         @default(2.5)
   yearlyLimit  Float         @default(30)
   createdAt    DateTime      @default(now())
 

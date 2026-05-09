@@ -138,7 +138,6 @@ export async function main() {
       startDate,
       endDate,
       isActive: true,
-      monthlyLimit: 2.5,
       yearlyLimit: DEFAULT_TOTAL_LEAVES,
     },
     create: {
@@ -146,7 +145,6 @@ export async function main() {
       startDate,
       endDate,
       isActive: true,
-      monthlyLimit: 2.5,
       yearlyLimit: DEFAULT_TOTAL_LEAVES,
     },
   });

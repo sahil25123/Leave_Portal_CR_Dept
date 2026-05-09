@@ -15,7 +15,7 @@ function normalizeLimit(value, fallback) {
   const parsed = Number(value);
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error("Invalid leave limits");
+    throw new Error("Invalid yearly limit");
   }
 
   return Number(parsed.toFixed(2));
@@ -25,7 +25,6 @@ function parseYearPayload(payload) {
   const name = String(payload?.name || "").trim();
   const startDate = toDateOnly(payload?.startDate);
   const endDate = toDateOnly(payload?.endDate);
-  const monthlyLimit = normalizeLimit(payload?.monthlyLimit, 2.5);
   const yearlyLimit = normalizeLimit(payload?.yearlyLimit, 30);
 
   if (!name || !startDate || !endDate) {
@@ -40,7 +39,6 @@ function parseYearPayload(payload) {
     name,
     startDate,
     endDate,
-    monthlyLimit,
     yearlyLimit,
   };
 }
@@ -52,7 +50,6 @@ function toLeaveYearResponse(leaveYear) {
     startDate: leaveYear.startDate,
     endDate: leaveYear.endDate,
     isActive: leaveYear.isActive,
-    monthlyLimit: leaveYear.monthlyLimit,
     yearlyLimit: leaveYear.yearlyLimit,
     createdAt: leaveYear.createdAt,
   };

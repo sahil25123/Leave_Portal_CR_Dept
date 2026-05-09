@@ -15,7 +15,6 @@ const INITIAL_FORM = {
   name: "",
   startDate: "",
   endDate: "",
-  monthlyLimit: "2.5",
   yearlyLimit: "30",
 };
 
@@ -72,7 +71,6 @@ function YearManagement() {
         name: form.name,
         startDate: form.startDate,
         endDate: form.endDate,
-        monthlyLimit: Number(form.monthlyLimit),
         yearlyLimit: Number(form.yearlyLimit),
       });
 
@@ -133,10 +131,7 @@ function YearManagement() {
                   {formatDate(activeYear.startDate)} to{" "}
                   {formatDate(activeYear.endDate)}
                 </p>
-                <p>
-                  Monthly Limit: {activeYear.monthlyLimit} day(s) | Yearly
-                  Limit: {activeYear.yearlyLimit} day(s)
-                </p>
+                <p>Yearly Limit: {activeYear.yearlyLimit} day(s)</p>
               </div>
             ) : (
               <p className="mt-2 text-sm text-amber-700">
@@ -210,27 +205,6 @@ function YearManagement() {
               <div>
                 <label
                   className="mb-1 block text-sm font-medium text-slate-700"
-                  htmlFor="monthly-limit"
-                >
-                  Monthly Limit
-                </label>
-                <input
-                  id="monthly-limit"
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  value={form.monthlyLimit}
-                  onChange={(event) =>
-                    updateField("monthlyLimit", event.target.value)
-                  }
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label
-                  className="mb-1 block text-sm font-medium text-slate-700"
                   htmlFor="yearly-limit"
                 >
                   Yearly Limit
@@ -293,7 +267,7 @@ function YearManagement() {
                           {formatDate(year.endDate)}
                         </td>
                         <td className="py-3 pr-3 text-slate-700">
-                          {year.monthlyLimit} / month, {year.yearlyLimit} / year
+                          {year.yearlyLimit} / year
                         </td>
                         <td className="py-3 pr-3">
                           {year.isActive ? (
