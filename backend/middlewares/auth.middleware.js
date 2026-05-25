@@ -7,7 +7,7 @@ function getBearerToken(authorizationHeader) {
   }
 
   const token = authorizationHeader.split(" ")[1];
-  return token || null
+  return token || null;
 }
 
 export function authenticate(req, res, next) {
