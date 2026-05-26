@@ -41,6 +41,8 @@ model User {
   email       String         @unique
   password    String
   mustChangePassword Boolean  @default(true)
+  resetPasswordToken String?
+  resetPasswordExpiry DateTime?
   designation String
   role        UserRole       @default(staff)
   createdAt   DateTime       @default(now())

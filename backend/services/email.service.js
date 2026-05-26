@@ -9,6 +9,7 @@ import {
   buildLeaveApprovedTemplate,
   buildLeaveCancelledTemplate,
   buildLeaveRejectedTemplate,
+  buildPasswordResetEmailTemplate,
 } from "./email.templates.js";
 
 const SMTP_HOST = process.env.EMAIL_SMTP_HOST || "smtp.gmail.com";
@@ -356,6 +357,28 @@ export async function sendAdminEmailUpdatedNotification({ user }) {
   } catch (error) {
     console.error(
       "[email] Unexpected error in sendAdminEmailUpdatedNotification:",
+      error?.message || error,
+    );
+  }
+}
+
+export async function sendPasswordResetEmail({ user, resetUrl }) {
+  try {
+    const template = buildPasswordResetEmailTemplate({
+      recipientName: user?.name || "Staff Member",
+      resetUrl,
+    });
+
+    await sendMailSafe(
+      {
+        to: user?.email,
+        ...template,
+      },
+      "password reset email",
+    );
+  } catch (error) {
+    console.error(
+      "[email] Unexpected error in sendPasswordResetEmail:",
       error?.message || error,
     );
   }

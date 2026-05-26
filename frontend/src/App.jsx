@@ -4,6 +4,7 @@ import Navbar from "./components/Navbar";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import AdminDashboard from "./pages/AdminDashboard";
 import Dashboard from "./pages/Dashboard";
+import ForgotPassword from "./pages/ForgotPassword";
 import HolidayManagement from "./pages/HolidayManagement";
 import LeaveOverview from "./pages/LeaveOverview";
 import Login from "./pages/Login";
@@ -13,6 +14,7 @@ import YearManagement from "./pages/YearManagement";
 import UserManagement from "./pages/UserManagement";
 import ChangePassword from "./pages/ChangePassword";
 import Profile from "./pages/Profile";
+import ResetPassword from "./pages/ResetPassword";
 
 function App() {
   return (
@@ -23,6 +25,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
