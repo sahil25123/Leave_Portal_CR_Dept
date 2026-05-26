@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import ErrorAlert from "../components/ErrorAlert";
 import { forgotPasswordRequest } from "../services/auth.service";
@@ -19,6 +19,19 @@ function ForgotPassword() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setResendCooldown((current) => (current > 0 ? current - 1 : 0));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -42,6 +55,7 @@ function ForgotPassword() {
     try {
       await forgotPasswordRequest({ email: normalizedEmail });
       setSuccess("If the email exists, a reset link has been sent.");
+      setResendCooldown(60);
       setEmail("");
     } catch (requestError) {
       setError(
@@ -93,11 +107,21 @@ function ForgotPassword() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || resendCooldown > 0}
             className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
           >
-            {isSubmitting ? "Sending Link..." : "Send Reset Link"}
+            {isSubmitting
+              ? "Sending Link..."
+              : resendCooldown > 0
+                ? "Please wait..."
+                : "Send Reset Link"}
           </button>
+
+          {resendCooldown > 0 ? (
+            <p className="text-center text-xs text-slate-500">
+              You can request another reset link in {resendCooldown}s.
+            </p>
+          ) : null}
 
           <div className="text-center text-sm text-slate-600">
             <Link
