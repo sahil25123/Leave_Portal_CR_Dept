@@ -127,6 +127,15 @@ function Login() {
             autoComplete="current-password"
           />
 
+          <div className="text-right text-sm">
+            <a
+              href="/forgot-password"
+              className="font-medium text-slate-600 hover:text-slate-900 hover:underline"
+            >
+              Forgot password?
+            </a>
+          </div>
+
           <ErrorAlert message={error} />
 
           <button

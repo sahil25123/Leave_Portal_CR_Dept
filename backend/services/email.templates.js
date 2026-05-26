@@ -539,3 +539,24 @@ export function buildAdminEmailUpdatedTemplate({ recipientName, portalUrl }) {
     }),
   };
 }
+
+export function buildPasswordResetEmailTemplate({ recipientName, resetUrl }) {
+  const title = "Password Reset Request";
+  const intro =
+    "We received a request to reset your password. This link will expire in 15 minutes. If you did not request this, you can ignore this email.";
+
+  return {
+    subject: title,
+    html: buildSimpleEmailLayout({
+      title,
+      intro,
+      recipientName,
+      buttonLabel: "Reset Password",
+      buttonUrl: resetUrl,
+    }),
+    text: buildSimpleTextBody({
+      title,
+      intro,
+    }),
+  };
+}
