@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import ErrorAlert from "../components/ErrorAlert";
 import PasswordField from "../components/forms/PasswordField";
 import { useAuth } from "../hooks/useAuth";
@@ -128,12 +128,12 @@ function Login() {
           />
 
           <div className="text-right text-sm">
-            <a
-              href="/forgot-password"
+            <Link
+              to="/forgot-password"
               className="font-medium text-slate-600 hover:text-slate-900 hover:underline"
             >
               Forgot password?
-            </a>
+            </Link>
           </div>
 
           <ErrorAlert message={error} />
